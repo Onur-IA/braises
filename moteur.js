@@ -1,1434 +1,894 @@
-/* Braises V2 : moteur de règles, utilisable dans le navigateur et dans Node.
-   Jeu original : aucune carte, nom, visuel ou règle copiés d'un autre jeu. */
+/* Braises V6 : moteur de règles (navigateur et Node).
+   Main de 4 cartes qui se remplit à chaque carte jouée, 3 mana par tour, classes à compétence évolutive,
+   tribus et liens, cartes à quête qui évoluent, niveaux et talents pendant la course, renom entre les courses.
+   Jeu original : aucun nom, texte ni visuel repris d'un autre jeu. */
 (function (racine) {
-  const CARTES = {
-    /* Solen, départ */
-    etincelle: { id: 'etincelle', nom: 'Étincelle', type: 'attaque', cout: 1, perso: 'solen', starter: true, texte: 'Inflige 6 dégâts.', degats: 6, plus: { degats: 9, texte: 'Inflige 9 dégâts.' } },
-    cendre: { id: 'cendre', nom: 'Cendre', type: 'garde', cout: 1, perso: 'solen', starter: true, texte: 'Gagne 6 de garde.', garde: 6, plus: { garde: 9, texte: 'Gagne 9 de garde.' } },
-    soufflet: { id: 'soufflet', nom: 'Soufflet', type: 'art', cout: 1, perso: 'solen', starter: true, texte: 'Gagne 2 Chaleur.', chaleur: 2, plus: { chaleur: 3, texte: 'Gagne 3 Chaleur.' } },
-    tisons: { id: 'tisons', nom: 'Tisons', type: 'attaque', cout: 1, perso: 'solen', starter: true, texte: 'Inflige 4 dégâts. Gagne 4 de garde.', degats: 4, garde: 4, plus: { degats: 6, garde: 6, texte: 'Inflige 6 dégâts. Gagne 6 de garde.' } },
-    /* Solen, récompenses */
-    trait: { id: 'trait', nom: 'Trait de feu', type: 'attaque', cout: 2, perso: 'solen', texte: 'Inflige 13 dégâts.', degats: 13, plus: { degats: 17, texte: 'Inflige 17 dégâts.' } },
-    braisevive: { id: 'braisevive', nom: 'Braise vive', type: 'attaque', cout: 1, perso: 'solen', texte: 'Inflige 5 dégâts, plus 3 par Chaleur.', degats: 5, parChaleur: 3, plus: { degats: 6, parChaleur: 4, texte: 'Inflige 6 dégâts, plus 4 par Chaleur.' } },
-    souffle: { id: 'souffle', nom: 'Souffle ardent', type: 'attaque', cout: 2, perso: 'solen', texte: 'Inflige 8 dégâts. Gagne 2 Chaleur.', degats: 8, chaleur: 2, plus: { degats: 10, chaleur: 2, texte: 'Inflige 10 dégâts. Gagne 2 Chaleur.' } },
-    eclat: { id: 'eclat', nom: 'Éclat', type: 'attaque', cout: 2, perso: 'solen', texte: 'Inflige 7 dégâts. Si tu as au moins 3 Chaleur, inflige 16 et consomme 3 Chaleur.', degats: 7, eclat: true, plus: { degats: 9, eclatSeuil: 3, eclatDegats: 20, texte: 'Inflige 9 dégâts. Si tu as au moins 3 Chaleur, inflige 20 et consomme 3 Chaleur.' } },
-    encens: { id: 'encens', nom: 'Encens', type: 'garde', cout: 0, perso: 'solen', texte: 'Gagne 3 de garde et 1 Chaleur.', garde: 3, chaleur: 1, plus: { garde: 5, chaleur: 1, texte: 'Gagne 5 de garde et 1 Chaleur.' } },
-    huile: { id: 'huile', nom: 'Huile', type: 'art', cout: 1, perso: 'solen', texte: 'La prochaine attaque inflige 6 dégâts de plus.', huile: 6, plus: { huile: 9, texte: 'La prochaine attaque inflige 9 dégâts de plus.' } },
-    /* Fumée, départ */
-    haleine: { id: 'haleine', nom: 'Haleine', type: 'attaque', cout: 1, perso: 'fumee', starter: true, texte: 'Inflige 6 dégâts.', degats: 6, plus: { degats: 9, texte: 'Inflige 9 dégâts.' } },
-    ecran: { id: 'ecran', nom: 'Écran', type: 'garde', cout: 1, perso: 'fumee', starter: true, texte: 'Gagne 6 de garde.', garde: 6, plus: { garde: 9, texte: 'Gagne 9 de garde.' } },
-    fumerolle: { id: 'fumerolle', nom: 'Fumerolle', type: 'art', cout: 1, perso: 'fumee', starter: true, texte: 'Gagne 2 Fumée.', fumee: 2, plus: { fumee: 3, texte: 'Gagne 3 Fumée.' } },
-    voilecourt: { id: 'voilecourt', nom: 'Voile court', type: 'garde', cout: 1, perso: 'fumee', starter: true, texte: 'Gagne 4 de garde et 1 Fumée.', garde: 4, fumee: 1, plus: { garde: 6, fumee: 1, texte: 'Gagne 6 de garde et 1 Fumée.' } },
-    /* Fumée, récompenses */
-    etouffement: { id: 'etouffement', nom: 'Étouffement', type: 'attaque', cout: 2, perso: 'fumee', texte: 'Inflige 7 dégâts et 1 Frisson. Si tu as au moins 2 Fumée, inflige 12, 2 Frisson, et consomme 2 Fumée.', degats: 7, frissonDonne: 1, etouffe: true, plus: { degats: 9, etouffeDegats: 15, texte: 'Inflige 9 dégâts et 1 Frisson. Si tu as au moins 2 Fumée, inflige 15, 2 Frisson, et consomme 2 Fumée.' } },
-    nuage: { id: 'nuage', nom: 'Nuage', type: 'attaque', cout: 1, perso: 'fumee', texte: 'Inflige 4 dégâts à tous les ennemis. Gagne 1 Fumée.', degats: 4, tous: true, fumee: 1, plus: { degats: 6, fumee: 1, texte: 'Inflige 6 dégâts à tous les ennemis. Gagne 1 Fumée.' } },
-    disparition: { id: 'disparition', nom: 'Disparition', type: 'garde', cout: 1, perso: 'fumee', texte: 'Gagne 8 de garde. Si tu as au moins 2 Fumée, consomme 2 et pioche 2 cartes.', garde: 8, disparait: true, plus: { garde: 11, texte: 'Gagne 11 de garde. Si tu as au moins 2 Fumée, consomme 2 et pioche 2 cartes.' } },
-    suie: { id: 'suie', nom: 'Suie', type: 'art', cout: 0, perso: 'fumee', texte: 'Gagne 2 Fumée.', fumee: 2, plus: { fumee: 3, texte: 'Gagne 3 Fumée.' } },
-    emprise: { id: 'emprise', nom: 'Emprise', type: 'attaque', cout: 1, perso: 'fumee', texte: 'Inflige 6 dégâts, plus 3 par 2 Fumée.', degats: 6, parFumee2: 3, plus: { degats: 7, parFumee2: 4, texte: 'Inflige 7 dégâts, plus 4 par 2 Fumée.' } },
-    courant: { id: 'courant', nom: 'Courant d\'air', type: 'art', cout: 1, perso: 'fumee', texte: 'Pioche 2 cartes. Gagne 1 Fumée.', pioche: 2, fumee: 1, plus: { pioche: 2, fumee: 2, texte: 'Pioche 2 cartes. Gagne 2 Fumée.' } },
-    /* Communes */
-    gerbe: { id: 'gerbe', nom: 'Gerbe', type: 'attaque', cout: 1, perso: 'commun', texte: 'Inflige 4 dégâts à tous les ennemis.', degats: 4, tous: true, plus: { degats: 6, texte: 'Inflige 6 dégâts à tous les ennemis.' } },
-    mur: { id: 'mur', nom: 'Mur de cendres', type: 'garde', cout: 2, perso: 'commun', texte: 'Gagne 12 de garde.', garde: 12, plus: { garde: 16, texte: 'Gagne 16 de garde.' } },
-    voile: { id: 'voile', nom: 'Voile de fumée', type: 'garde', cout: 1, perso: 'commun', texte: 'Gagne 5 de garde. Pioche 1 carte.', garde: 5, pioche: 1, plus: { garde: 8, pioche: 1, texte: 'Gagne 8 de garde. Pioche 1 carte.' } },
-    flamme: { id: 'flamme', nom: 'Flamme double', type: 'art', cout: 1, perso: 'commun', texte: 'Pioche 2 cartes.', pioche: 2, plus: { pioche: 2, garde: 3, texte: 'Pioche 2 cartes. Gagne 3 de garde.' } },
-    resine: { id: 'resine', nom: 'Résine', type: 'art', cout: 0, perso: 'commun', texte: 'Au prochain tour, gagne 1 énergie de plus.', resine: 1, plus: { resine: 1, garde: 3, texte: 'Au prochain tour, gagne 1 énergie de plus et 3 de garde tout de suite.' } },
-    cisaille: { id: 'cisaille', nom: 'Cisaille', type: 'attaque', cout: 1, perso: 'silex', starter: true, texte: 'Inflige 6 dégâts.', degats: 6, plus: { degats: 9, texte: 'Inflige 9 dégâts.' } },
-    plaque: { id: 'plaque', nom: 'Plaque', type: 'garde', cout: 1, perso: 'silex', starter: true, texte: 'Gagne 6 de garde.', garde: 6, plus: { garde: 9, texte: 'Gagne 9 de garde.' } },
-    givreux: { id: 'givreux', nom: 'Givreux', type: 'art', cout: 1, perso: 'silex', starter: true, texte: 'Gagne 2 Gel.', gel: 2, plus: { gel: 3, texte: 'Gagne 3 Gel.' } },
-    faille: { id: 'faille', nom: 'Faille', type: 'attaque', cout: 1, perso: 'silex', starter: true, texte: 'Inflige 4 dégâts. Gagne 1 Gel.', degats: 4, gel: 1, plus: { degats: 6, gel: 1, texte: 'Inflige 6 dégâts. Gagne 1 Gel.' } },
-    briser: { id: 'briser', nom: 'Briser', type: 'attaque', cout: 1, perso: 'silex', texte: 'Inflige 4 dégâts par Gel, puis consomme tout le Gel.', briser: true, briserDegats: 4, degats: 0, plus: { briserDegats: 5, texte: 'Inflige 5 dégâts par Gel, puis consomme tout le Gel.' } },
-    cassure: { id: 'cassure', nom: 'Cassure', type: 'attaque', cout: 2, perso: 'silex', texte: 'Inflige 8 dégâts. Si tu as au moins 3 Gel, inflige 16.', degats: 8, cassure: true, cassureSeuil: 3, cassureDegats: 16, plus: { degats: 10, cassureDegats: 20, texte: 'Inflige 10 dégâts. Si tu as au moins 3 Gel, inflige 20.' } },
-    frimas: { id: 'frimas', nom: 'Frimas', type: 'art', cout: 1, perso: 'silex', texte: 'Gagne 2 Gel et 3 de garde.', gel: 2, garde: 3, plus: { gel: 3, garde: 5, texte: 'Gagne 3 Gel et 5 de garde.' } },
-    carapace: { id: 'carapace', nom: 'Carapace', type: 'garde', cout: 1, perso: 'silex', texte: 'Gagne 5 de garde et 1 Gel.', garde: 5, gel: 1, plus: { garde: 8, gel: 1, texte: 'Gagne 8 de garde et 1 Gel.' } },
-    aiguille: { id: 'aiguille', nom: 'Aiguille', type: 'attaque', cout: 0, perso: 'silex', texte: 'Inflige 3 dégâts. Gagne 1 Gel.', degats: 3, gel: 1, plus: { degats: 5, gel: 1, texte: 'Inflige 5 dégâts. Gagne 1 Gel.' } },
-    verglas: { id: 'verglas', nom: 'Verglas', type: 'art', cout: 1, perso: 'silex', texte: 'Pioche 2 cartes. Gagne 1 Gel.', pioche: 2, gel: 1, plus: { pioche: 2, gel: 2, texte: 'Pioche 2 cartes. Gagne 2 Gel.' } }
-  };
+  const D = (typeof module !== 'undefined' && module.exports) ? require('./donnees.js') : racine.BraisesDonnees;
+  const { CARTES, CLASSES, TALISMANS, ENNEMIS, MONDES, ACTES, TALENTS, EVENEMENTS, TRIBUS } = D;
 
-  const DEBLOCABLES = {
-    solen: ['eclat', 'huile'],
-    fumee: ['etouffement', 'disparition'],
-    silex: ['cassure'],
-    commun: ['resine']
-  };
+  // ---------- hasard reproductible (état stocké dans la course) ----------
+  function alea(run) {
+    let a = (run.rs = (run.rs + 0x6D2B79F5) | 0);
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  const ent = (run, n) => Math.floor(alea(run) * n);
+  const choisir = (run, arr) => arr[ent(run, arr.length)];
+  const entre = (run, a, b) => a + ent(run, b - a + 1);
+  function melanger(run, arr) { for (let i = arr.length - 1; i > 0; i--) { const j = ent(run, i + 1); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; }
 
-  const RELIQUES = {
-    anneau: { id: 'anneau', nom: 'Anneau de veille', texte: 'Gagne 8 pv maximum (et 8 pv maintenant).', rare: 'commune' },
-    meche: { id: 'meche', nom: 'Mèche longue', texte: 'La première attaque de chaque combat inflige 4 dégâts de plus.', rare: 'commune' },
-    bol: { id: 'bol', nom: 'Bol de résine', texte: 'Au deuxième tour de chaque combat, gagne 1 énergie.', rare: 'commune' },
-    cendrex: { id: 'cendrex', nom: 'Cendre ancestrale', texte: 'Au début de ton tour, gagne 2 de garde.', rare: 'commune' },
-    souffletcuivre: { id: 'souffletcuivre', nom: 'Soufflet de cuivre', texte: 'Quand tu gagnes de la Chaleur, de la Fumée ou du Gel, gagne 2 de garde.', rare: 'rare' },
-    linceul: { id: 'linceul', nom: 'Linceul de suie', texte: 'La première fois par combat que tu termines un tour à 0 énergie, gagne 4 de garde.', rare: 'rare' },
-    pierre: { id: 'pierre', nom: 'Pierre d\'étincelle', texte: 'La première carte à 0 coût jouée chaque tour pioche 1 carte.', rare: 'rare' },
-    coeur: { id: 'coeur', nom: 'Cœur encore chaud', texte: 'Au début de chaque combat, gagne 1 Chaleur, 1 Fumée ou 1 Gel, selon ton personnage.', rare: 'rare' }
-  };
+  const SEUILS_XP = [0, 25, 60, 105, 160, 225, 300, 390, 490];
+  const RENOM_NIVEAUX = [0, 80, 200, 360, 560, 800, 1100, 1500, 2000, 2600, 3300];
+  const BRASIER = [
+    'Aucun malus.',
+    'Ennemis : +10 % de PV.',
+    'Élites : +1 Force.',
+    'Après un boss, tu ne récupères que la moitié de tes PV.',
+    'Ennemis : +1 dégât par coup.',
+    'Tu commences avec une Suie dans ton paquet.',
+    'Marchands : +20 % de prix.',
+    'Ennemis : +30 % de PV au total.',
+    'Le brasero soigne 20 % au lieu de 30 %.',
+    'Boss : +1 Force.',
+    'Ennemis : +2 dégâts par coup au total.'
+  ];
 
-  const PERSOS = {
-    solen: {
-      id: 'solen', nom: 'Solen', titre: 'le Porte-flamme', ressource: 'chaleur',
-      pv: 70, accroche: 'Une flamme vivante tient encore dans tes paumes. Traverse les chambres, construis ton jeu, et ne la laisse pas s\'éteindre.',
-      depart: ['etincelle', 'etincelle', 'etincelle', 'etincelle', 'cendre', 'cendre', 'cendre', 'cendre', 'soufflet', 'tisons']
-    },
-    fumee: {
-      id: 'fumee', nom: 'Fumée', titre: 'la Voile-grise', ressource: 'fumee',
-      pv: 70, accroche: 'Tu glisses d\'une chambre à l\'autre. Ce qui reste derrière toi n\'est qu\'un voile, et tes ennemis frappent dans le vide.',
-      depart: ['haleine', 'haleine', 'haleine', 'haleine', 'ecran', 'ecran', 'ecran', 'ecran', 'fumerolle', 'voilecourt']
-    },
-    silex: {
-      id: 'silex', nom: 'Silex', titre: 'le Brisegivre', ressource: 'gel',
-      pv: 70, accroche: 'Tu entasses le gel, fissure après fissure, puis tu brises tout d\'un seul coup.',
-      depart: ['cisaille', 'cisaille', 'cisaille', 'plaque', 'plaque', 'plaque', 'plaque', 'givreux', 'faille', 'briser']
-    }
-  };
+  // ---------- effets (héritage, talismans, talents) ----------
+  function effets(run) {
+    const out = [];
+    const cl = CLASSES[run.classe];
+    if (run.heritage != null && cl.heritages[run.heritage]) out.push(...cl.heritages[run.heritage].eff);
+    run.talismans.forEach((t) => TALISMANS[t] && out.push(...TALISMANS[t].eff));
+    run.talents.forEach((id) => { const t = talentDef(id); if (t) out.push(...t.eff); });
+    return out;
+  }
+  function eff(run, cle) { return effets(run).filter((e) => e[0] === cle).reduce((s, e) => s + (typeof e[1] === 'number' ? e[1] : e[2] || 0), 0); }
+  function talentDef(id) { return TALENTS.find((t) => t.id === id) || Object.values(CLASSES).flatMap((c) => c.talents).find((t) => t.id === id); }
 
-  function intentionTexte(int) {
-    if (!int) return '…';
-    if (int.texte) return int.texte;
-    return '…';
+  // ---------- cartes ----------
+  function def(inst) { return CARTES[inst.id || inst]; }
+  function niveauMax(d) { return d.v.length - 1; }
+  function vals(inst) { const d = def(inst); return d.v[Math.min(inst.niv || 0, d.v.length - 1)]; }
+  function texte(inst) { return def(inst).txt(vals(inst)); }
+  function nomCarte(inst) {
+    const d = def(inst); const n = inst.niv || 0;
+    if (d.q) return d.nom + ' ' + '★'.repeat(n + 1);
+    return d.nom + (n > 0 ? '+' : '');
+  }
+  function cout(inst, c) { return def(inst).c; }
+  function nouvelleInst(run, id, niv) { return { u: ++run.uidN, id, niv: niv || 0, q: 0 }; }
+  function tribuCompte(run, tr) { return run.deck.filter((x) => def(x).tr === tr).length; }
+  function liens(run) {
+    const out = [];
+    Object.entries(TRIBUS).forEach(([k, t]) => {
+      const n = tribuCompte(run, k);
+      let palier = -1; t.paliers.forEach((p, i) => { if (n >= p) palier = i; });
+      out.push({ tribu: k, nom: t.nom, n, palier, val: palier >= 0 ? t.val[palier] : 0, txt: palier >= 0 ? t.txt[palier] : null, prochain: t.paliers.find((p) => p > n) || null, couleur: t.couleur });
+    });
+    return out;
+  }
+  function lienVal(run, tr) { const l = liens(run).find((x) => x.tribu === tr); return l ? l.val : 0; }
+
+  // ---------- création de course ----------
+  function nouvelleCourse(classe, opts) {
+    opts = opts || {};
+    const cl = CLASSES[classe];
+    const run = {
+      v: 6, classe, heritage: opts.heritage != null ? opts.heritage : 0, brasier: opts.brasier || 0,
+      rs: (opts.graine != null ? opts.graine : Math.floor(Math.random() * 2 ** 31)) | 0,
+      pvMax: cl.pv, pv: cl.pv, or: 90, eclats: 1, deck: [], talismans: [], talents: [], rang: 1, niveau: 1, xp: 0,
+      niveauxEnAttente: 0, acte: 0, monde: null, bossId: null, carte: null, pos: null, etage: 0, etageTotal: 0,
+      ecran: 'carte', combat: null, recompense: null, marchand: null, evenement: null, tresor: null, selection: null, talentChoix: null,
+      stats: { tues: 0, degats: 0, tours: 0, elites: 0, boss: 0, cartesJouees: 0 }, uidN: 0, flags: {}, vus: [], journal: [], gagne: false, fini: false
+    };
+    cl.depart.forEach((id) => run.deck.push(nouvelleInst(run, id)));
+    if (run.brasier >= 5) run.deck.push(nouvelleInst(run, 'suie'));
+    const bonusPv = eff(run, 'pvMax'); run.pvMax += bonusPv; run.pv += bonusPv;
+    run.or += eff(run, 'orDepart');
+    commencerActe(run, 0);
+    return run;
   }
 
-  function creerIntentions() {
-    return {
-      chien(e, rng) {
-        const r = rng();
-        const f = e.force || 0;
-        if ((e.force || 0) < 2 && r < 0.26) return { sorte: 'buff', texte: 'Se renforce +2', force: 2 };
-        if (r < 0.58) return { sorte: 'attaque', texte: (7 + f) + ' dégâts', degats: 7 };
-        return { sorte: 'attaque', texte: '2 × ' + (4 + f), coups: 2, degats: 4 };
-      },
-      statue(e, rng) {
-        e.cycle = (e.cycle || 0) + 1;
-        const f = e.force || 0;
-        const c = e.cycle % 3;
-        if (c === 1) return { sorte: 'buff', texte: 'Frisson 2', frisson: 2 };
-        if (c === 2) return { sorte: 'garde', texte: '8 de garde', garde: 8 };
-        return { sorte: 'attaque', texte: (12 + f) + ' dégâts', degats: 12 };
-      },
-      rampant(e, rng) {
-        const r = rng();
-        const f = e.force || 0;
-        if (r < 0.3) return { sorte: 'buff', texte: 'Frisson 1 et +1 force', frisson: 1, force: 1 };
-        if (r < 0.65) return { sorte: 'attaque', texte: '3 × ' + (3 + f), coups: 3, degats: 3 };
-        return { sorte: 'attaque', texte: (10 + f) + ' dégâts', degats: 10 };
-      },
-      matrone(e, rng) {
-        if (e.charge) {
-          e.charge = false;
-          const f = e.force || 0;
-          return { sorte: 'charge', texte: (15 + f) + ' dégâts', degats: 15 };
-        }
-        e.cycle = (e.cycle || 0) + 1;
-        const f = e.force || 0;
-        const c = e.cycle % 4;
-        if (c === 1) return { sorte: 'buff', texte: 'Frisson 2', frisson: 2 };
-        if (c === 2) return { sorte: 'garde', texte: '10 de garde', garde: 10 };
-        if (c === 3) { e.charge = true; return { sorte: 'charge', texte: 'Se charge', rien: true }; }
-        return { sorte: 'attaque', texte: '2 × ' + (6 + f), coups: 2, degats: 6 };
-      },
-      souffleur(e, rng) {
-        if (e.charge) {
-          e.charge = false;
-          const f = e.force || 0;
-          return { sorte: 'charge', texte: (16 + f) + ' dégâts', degats: 16 };
-        }
-        const r = rng();
-        const f = e.force || 0;
-        if (r < 0.32) { e.charge = true; return { sorte: 'charge', texte: 'Se charge', rien: true }; }
-        if (r < 0.66) return { sorte: 'attaque', texte: '3 × ' + (4 + f), coups: 3, degats: 4 };
-        return { sorte: 'attaque', texte: (11 + f) + ' dégâts', degats: 11 };
-      },
-      falot(e, rng) {
-        const r = rng();
-        const f = e.force || 0;
-        if (r < 0.30) return { sorte: 'buff', texte: 'La lanterne s\'enflamme +2', force: 2 };
-        if (r < 0.65) return { sorte: 'attaque', texte: (7 + f) + ' dégâts', degats: 7 };
-        return { sorte: 'attaque', texte: '2 × ' + (3 + f), coups: 2, degats: 3 };
-      },
-      urne(e, rng) {
-        if (e.charge) {
-          e.charge = false;
-          const f = e.force || 0;
-          return { sorte: 'charge', texte: (13 + f) + ' dégâts', degats: 13 };
-        }
-        const r = rng();
-        const f = e.force || 0;
-        if (r < 0.28) { e.charge = true; return { sorte: 'charge', texte: 'L\'urne se fend', rien: true }; }
-        if (r < 0.6) return { sorte: 'buff', texte: 'Suie : Frisson 1', frisson: 1 };
-        return { sorte: 'attaque', texte: (8 + f) + ' dégâts', degats: 8 };
-      },
-      cloche(e, rng) {
-        if (e.charge) {
-          e.charge = false;
-          const f = e.force || 0;
-          return { sorte: 'charge', texte: (17 + f) + ' dégâts', degats: 17 };
-        }
-        e.cycle = (e.cycle || 0) + 1;
-        const f = e.force || 0;
-        const c = e.cycle % 4;
-        if (c === 1) return { sorte: 'buff', texte: 'Glas : Frisson 2', frisson: 2 };
-        if (c === 2) return { sorte: 'garde', texte: '10 de garde', garde: 10 };
-        if (c === 3) { e.charge = true; return { sorte: 'charge', texte: 'La cloche s\'arme', rien: true }; }
-        return { sorte: 'attaque', texte: '2 × ' + (6 + f), coups: 2, degats: 6 };
+  function commencerActe(run, n) {
+    run.acte = n;
+    const a = ACTES[n];
+    run.monde = choisir(run, a.mondes);
+    run.bossId = choisir(run, a.boss);
+    run.carte = genererCarte(run);
+    run.pos = null; run.etage = 0; run.ecran = 'carte'; run.chemin = [];
+  }
+
+  // ---------- carte ----------
+  function genererCarte(run) {
+    const R = 7, COLS = 4;
+    const noeuds = {};
+    const cle = (r, c) => r + '-' + c;
+    const departs = melanger(run, [0, 1, 2, 3]).slice(0, 2);
+    departs.push(ent(run, COLS), ent(run, COLS));
+    departs.forEach((c0) => {
+      let c = c0;
+      for (let r = 0; r < R; r++) {
+        const k = cle(r, c);
+        if (!noeuds[k]) noeuds[k] = { id: k, r, c, type: null, liens: [] };
+        if (r < R - 1) {
+          let nc = Math.max(0, Math.min(COLS - 1, c + choisir(run, [-1, 0, 0, 1])));
+          // évite de croiser un lien existant
+          const croise = Object.values(noeuds).some((n) => n.r === r && n.liens.some((l) => { const [, lc] = l.split('-').map(Number); return (n.c < c && lc > nc) || (n.c > c && lc < nc); }));
+          if (croise) nc = c;
+          const nk = cle(r + 1, nc);
+          if (!noeuds[k].liens.includes(nk)) noeuds[k].liens.push(nk);
+          c = nc;
+        } else noeuds[k].liens = ['boss'];
       }
-    };
+    });
+    Object.values(noeuds).forEach((n) => {
+      if (n.r === 0) n.type = 'combat';
+      else if (n.r === 3) n.type = 'tresor';
+      else if (n.r === R - 1) n.type = 'brasero';
+      else {
+        const poids = [['combat', 44], ['evenement', 20], ['elite', n.r >= 2 ? 14 : 0], ['marchand', n.r >= 2 ? 11 : 0], ['brasero', n.r >= 2 && n.r <= 4 ? 7 : 0]];
+        const tot = poids.reduce((s, p) => s + p[1], 0);
+        let x = alea(run) * tot;
+        for (const [t, w] of poids) { x -= w; if (x < 0) { n.type = t; break; } }
+        if (!n.type) n.type = 'combat';
+      }
+      n.liens.sort();
+    });
+    noeuds.boss = { id: 'boss', r: R, c: 1.5, type: 'boss', liens: [] };
+    return { noeuds, rangs: R };
+  }
+  function choixCarte(run) {
+    if (!run.carte) return [];
+    if (run.pos == null) return Object.values(run.carte.noeuds).filter((n) => n.r === 0).map((n) => n.id).sort();
+    const n = run.carte.noeuds[run.pos];
+    return n ? n.liens.slice() : [];
   }
 
-  const INTENTS = creerIntentions();
-
-  const ENNEMIS = {
-    chien: { type: 'chien', nom: 'Chien de cendre', pv: 36, picto: 'chien', element: 'braise' },
-    statue: { type: 'statue', nom: 'Statue de givre', pv: 45, picto: 'statue', element: 'givre' },
-    rampant: { type: 'rampant', nom: 'Rampant de suie', pv: 53, picto: 'rampant', element: 'suie' },
-    falot: { type: 'falot', nom: 'Falot', pv: 30, picto: 'falot', element: 'braise' },
-    urne: { type: 'urne', nom: 'Urne fêlée', pv: 41, picto: 'urne', element: 'suie' },
-    matrone: { type: 'matrone', nom: 'Matrone de givre', pv: 74, picto: 'matrone', element: 'givre' },
-    souffleur: { type: 'souffleur', nom: 'Souffleur', pv: 102, picto: 'souffleur', element: 'vent' },
-    cloche: { type: 'cloche', nom: 'Cloche de suie', pv: 105, picto: 'cloche', element: 'suie' }
-  };
-
-  const EVENEMENTS = {
-    chien_errant: {
-      id: 'chien_errant', nom: 'Chien errant',
-      texte: 'Un chien de cendre, presque éteint, s\'approche et attend. Sa braise vacille.',
-      choix: [
-        { id: 'nourrir', label: 'Lui laisser un peu de flamme (−5 pv)', effet: { pv: -5, flag: 'chiensAmis' }, suite: 'Plus tard, les chiens de cendre te reconnaîtront et seront plus faibles.' },
-        { id: 'chasser', label: 'Le chasser (+8 or)', effet: { or: 8, flag: 'chiensHostiles' }, suite: 'Il part, rancunier. Les prochains chiens seront plus durs.' }
-      ]
-    },
-    fissure: {
-      id: 'fissure', nom: 'Fissure dans le givre',
-      texte: 'Une statue déjà fendue. Un coup la briserait. La laisser intacte calmerait peut-être ce qui vient.',
-      choix: [
-        { id: 'briser', label: 'La briser (+14 or)', effet: { or: 14, flag: 'matroneColere' }, suite: 'La Matrone de givre s\'en souviendra.' },
-        { id: 'respecter', label: 'La laisser (2 de garde au début de chaque combat)', effet: { flag: 'gardeDepart' }, suite: 'Une mince plaque de givre te couvre au début de chaque combat.' }
-      ]
-    },
-    coupe_huile: {
-      id: 'coupe_huile', nom: 'La coupe d\'huile',
-      texte: 'Une coupe d\'huile encore chaude, oubliée sur l\'étal. La prendre te ferait du bien maintenant. Le ramendeur le saurait.',
-      choix: [
-        { id: 'prendre', label: 'La prendre (huile au prochain combat, boutiques plus chères)', effet: { flag: 'huileVolee' }, suite: 'La prochaine attaque du prochain combat sera plus forte. Les étals demandent davantage.' },
-        { id: 'laisser', label: 'La laisser (+8 pv)', effet: { soin: 8, flag: 'honnete' }, suite: 'Tu te reposes un instant. Les prix restent ce qu\'ils sont.' }
-      ]
-    },
-    serment: {
-      id: 'serment', nom: 'Serment de veille',
-      texte: 'Une inscription : « Jure de veiller, et la flamme t\'élargit. Mais le givre te touchera aux portes. »',
-      choix: [
-        { id: 'jurer', label: 'Jurer (+6 pv max)', effet: { pvMax: 6, flag: 'bossFrisson' }, suite: 'Ta réserve s\'élargit. Aux combats de boss, un Frisson t\'attend.' },
-        { id: 'refuser', label: 'Passer mon chemin (+12 or)', effet: { or: 12 }, suite: 'Tu continues, les poches un peu plus lourdes.' }
-      ]
-    },
-    urne_scellee: {
-      id: 'urne_scellee', nom: 'Urne scellée',
-      texte: 'Une urne fermée, encore chaude. L\'ouvrir, c\'est risquer ce qui dort. La sceller, c\'est laisser tomber une récompense.',
-      choix: [
-        { id: 'ouvrir', label: 'L\'ouvrir (une relique, les urnes plus tard sont plus dures)', effet: { flag: 'urneOuverte', relique: true }, suite: 'Tu prends ce qui brille. Les urnes suivantes seront plus pleines, et plus lourdes.' },
-        { id: 'sceller', label: 'La sceller (plus tard, les urnes sont plus faibles)', effet: { flag: 'urneScellee' }, suite: 'Le couvercle tient. Tu n\'emportes rien.' }
-      ]
-    }
-  };
-
-  /* ---------- utilitaires ---------- */
-  function creerRng(graine) {
-    if (graine == null) return Math.random;
-    let s = (graine >>> 0) || 1;
-    return function () {
-      s += 0x6D2B79F5;
-      let t = s;
-      t = Math.imul(t ^ t >>> 15, t | 1);
-      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-      return ((t ^ t >>> 14) >>> 0) / 4294967296;
-    };
-  }
-  function choix(arr, rng) { return arr[Math.floor((rng || Math.random)() * arr.length)]; }
-  function melanger(a, rng) {
-    const r = rng || Math.random;
-    const t = a.slice();
-    for (let i = t.length - 1; i > 0; i--) {
-      const j = Math.floor(r() * (i + 1));
-      [t[i], t[j]] = [t[j], t[i]];
-    }
-    return t;
-  }
-  function uid(rng) { return Math.floor((rng || Math.random)() * 1e9).toString(36) + Math.floor((rng || Math.random)() * 1e9).toString(36); }
-  function instancier(id, rng, plus) { const c = { uid: uid(rng), id }; if (plus) c.plus = true; return c; }
-
-  function defCarte(c) {
-    const base = CARTES[typeof c === 'string' ? c : c.id];
-    if (!base) return { id: '?', nom: '?', type: 'art', cout: 0, texte: '' };
-    if (c && c.plus && base.plus) {
-      const m = Object.assign({}, base, base.plus);
-      m.nom = base.nom + '+';
-      m.amelioree = true;
-      m.texte = base.plus.texte || base.texte;
-      return m;
-    }
-    return base;
-  }
-
-  function aRelique(etat, id) { return (etat.reliques || []).some((r) => (r.id || r) === id); }
-
-
-  const ELEMENTS = {
-    braise: { id: 'braise', nom: 'Braise' },
-    givre: { id: 'givre', nom: 'Givre' },
-    suie: { id: 'suie', nom: 'Suie' },
-    vent: { id: 'vent', nom: 'Vent' }
-  };
-  /* Cycle : Braise bat Suie, Suie bat Givre, Givre bat Vent, Vent bat Braise. */
-  const AVANTAGE = { braise: 'suie', suie: 'givre', givre: 'vent', vent: 'braise' };
-  function multiplicateur(att, defn) {
-    if (!att || !defn) return 1;
-    if (AVANTAGE[att] === defn) return 1.5;
-    if (AVANTAGE[defn] === att) return 0.5;
-    return 1;
-  }
-
-  const LIGNES = {
-    braquet: {
-      id: 'braquet', element: 'braise', sources: ['chien', 'falot', 'intro'],
-      stades: [
-        { id: 'braquet', nom: 'Braquet', texte: 'En début de tour, inflige 1 dégât typé Braise.', degats: 1, evolveAt: 3 },
-        { id: 'brasure', nom: 'Brasure', texte: 'En début de tour, inflige 2 dégâts typés Braise.', degats: 2, evolveAt: 7 },
-        { id: 'brasalum', nom: 'Brasalum', texte: 'En début de tour, inflige 3 dégâts typés Braise.', degats: 3 }
-      ]
-    },
-    cendrel: {
-      id: 'cendrel', element: 'suie', sources: ['chien', 'rampant', 'chien_errant'],
-      stades: [
-        { id: 'cendrel', nom: 'Cendrel', texte: 'En début de tour, tu gagnes 1 de garde.', garde: 1, evolveAt: 3 },
-        { id: 'cendroux', nom: 'Cendroux', texte: 'En début de tour, tu gagnes 2 de garde.', garde: 2, evolveAt: 7 },
-        { id: 'cendrure', nom: 'Cendrure', texte: 'En début de tour, tu gagnes 3 de garde.', garde: 3 }
-      ]
-    },
-    givret: {
-      id: 'givret', element: 'givre', sources: ['statue', 'matrone', 'urne'],
-      stades: [
-        { id: 'givret', nom: 'Givret', texte: 'En début de tour, inflige 1 dégât typé Givre.', degats: 1, evolveAt: 3 },
-        { id: 'givrance', nom: 'Givrance', texte: 'En début de tour, inflige 2 dégâts typés Givre.', degats: 2, evolveAt: 7 },
-        { id: 'givroir', nom: 'Givroir', texte: 'En début de tour, inflige 3 dégâts typés Givre et 1 Frisson.', degats: 3, frisson: 1 }
-      ]
-    },
-    soufflin: {
-      id: 'soufflin', element: 'vent', sources: ['souffleur', 'mixte2', 'dure2'],
-      stades: [
-        { id: 'soufflin', nom: 'Soufflin', texte: 'En début de tour, inflige 1 dégât typé Vent.', degats: 1, evolveAt: 3 },
-        { id: 'soufflare', nom: 'Soufflare', texte: 'En début de tour, inflige 2 dégâts typés Vent.', degats: 2, evolveAt: 7 },
-        { id: 'soufflame', nom: 'Soufflame', texte: 'En début de tour, inflige 3 dégâts typés Vent. Au tour 2, +1 énergie.', degats: 3, energieTour2: 1 }
-      ]
-    },
-    faluette: {
-      id: 'faluette', element: 'braise', sources: ['falot', 'dure'],
-      stades: [
-        { id: 'faluette', nom: 'Faluette', texte: 'En début de combat, tu gagnes 1 Chaleur ou 1 Fumée.', debut: 1, evolveAt: 3 },
-        { id: 'falumine', nom: 'Falumine', texte: 'En début de combat, +1 ressource. En début de tour, 1 dégât typé Braise.', debut: 1, degats: 1, evolveAt: 7 },
-        { id: 'falorgue', nom: 'Falorgue', texte: 'En début de combat, +1 ressource. En début de tour, 2 dégâts typés Braise.', debut: 1, degats: 2 }
-      ]
-    },
-    urnille: {
-      id: 'urnille', element: 'suie', sources: ['urne', 'urne_scellee'],
-      stades: [
-        { id: 'urnille', nom: 'Urnille', texte: 'La première fois par combat que tu subis des dégâts, ils sont réduits de 2.', mitigation: 2, evolveAt: 3 },
-        { id: 'urnace', nom: 'Urnace', texte: 'La première fois par combat que tu subis des dégâts, ils sont réduits de 3.', mitigation: 3, evolveAt: 7 },
-        { id: 'urnalis', nom: 'Urnalis', texte: 'La première fois par combat que tu subis des dégâts, ils sont réduits de 4.', mitigation: 4 }
-      ]
-    },
-    glasmin: {
-      id: 'glasmin', element: 'givre', sources: ['cloche', 'matrone', 'serment'],
-      stades: [
-        { id: 'glasmin', nom: 'Glasmin', texte: 'Au début d\'un combat de boss, tu gagnes 3 de garde.', gardeBoss: 3, evolveAt: 4 },
-        { id: 'glasmoire', nom: 'Glasmoire', texte: 'Au début d\'un combat de boss, tu gagnes 5 de garde.', gardeBoss: 5 }
-      ]
-    },
-    vireve: {
-      id: 'vireve', element: 'vent', sources: ['evenement', 'mixte', 'froid'],
-      stades: [
-        { id: 'vireve', nom: 'Vireve', texte: 'En début de tour, inflige 1 dégât typé Vent à un ennemi.', degats: 1, evolveAt: 3 },
-        { id: 'virevent', nom: 'Virevent', texte: 'En début de tour, inflige 1 dégât typé Vent à tous les ennemis.', tous: true, degats: 1, evolveAt: 7 },
-        { id: 'virouant', nom: 'Virouant', texte: 'En début de tour, inflige 2 dégâts typés Vent à tous les ennemis.', tous: true, degats: 2 }
-      ]
-    }
-  };
-  const EQUIPE_MAX = 3;
-
-  function defLigne(id) { return LIGNES[id]; }
-  function defStade(fam) {
-    const ligne = LIGNES[fam.ligne || fam.id];
-    if (!ligne) return null;
-    const i = Math.max(0, Math.min((fam.stade || 0), ligne.stades.length - 1));
-    return Object.assign({ ligne: ligne.id, element: ligne.element }, ligne.stades[i]);
-  }
-  function artFamilier(fam) {
-    const s = defStade(fam);
-    return s ? s.id : (fam && (fam.ligne || fam.id));
-  }
-
-  function equipe(etat) { return etat.familiers || []; }
-
-  function proposerCapture(etat, noeud, rng) {
-    const r = rng || Math.random;
-    if ((etat.familiers || []).length >= EQUIPE_MAX) return null;
-    const tenues = new Set((etat.familiers || []).map((f) => f.ligne));
-    const sources = [];
-    if (noeud) {
-      sources.push(noeud.vague, noeud.type);
-      if (noeud.type === 'evenement') sources.push(noeud.vague, 'evenement');
-    }
-    const vagues = (etat.combat && etat.combat.ennemis) ? etat.combat.ennemis.map((e) => e.type) : [];
-    sources.push.apply(sources, vagues);
-    const candidates = Object.values(LIGNES).filter((l) => !tenues.has(l.id) && l.sources.some((s) => sources.includes(s)));
-    if (!candidates.length) return null;
-    const estElite = noeud && (noeud.type === 'elite' || noeud.type === 'boss');
-    const chance = estElite ? 0.22 : (noeud && noeud.type === 'evenement' ? 0.12 : 0.08);
-    if (r() > chance) return null;
-    const ligne = choix(candidates, r);
-    return { ligne: ligne.id, stade: 0, nom: ligne.stades[0].nom, element: ligne.element, texte: ligne.stades[0].texte };
-  }
-
-  function accueillirFamilier(etat, ligneId) {
-    etat.familiers = etat.familiers || [];
-    if (etat.familiers.some((f) => f.ligne === ligneId)) return false;
-    if (etat.familiers.length >= EQUIPE_MAX) return false;
-    const ligne = LIGNES[ligneId];
-    if (!ligne) return false;
-    etat.familiers.push({ ligne: ligne.id, stade: 0, combats: 0, uid: uid() });
+  function entrerNoeud(run, id) {
+    if (!choixCarte(run).includes(id)) return false;
+    run.pos = id; run.etage++; run.etageTotal++; run.chemin = (run.chemin || []).concat(id);
+    const n = run.carte.noeuds[id];
+    const m = MONDES[run.monde];
+    if (n.type === 'combat') {
+      const pool = (run.acte === 0 && n.r <= 1 && m.faciles) ? m.faciles : m.normaux;
+      if (run.flags.eliteSuivante) { run.flags.eliteSuivante = false; commencerCombat(run, choisir(run, m.elites), 'elite'); }
+      else commencerCombat(run, choisir(run, pool), 'combat');
+    } else if (n.type === 'elite') commencerCombat(run, choisir(run, m.elites), 'elite');
+    else if (n.type === 'boss') commencerCombat(run, [run.bossId], 'boss');
+    else if (n.type === 'tresor') {
+      run.tresor = { or: Math.round(entre(run, 30, 50) * (1 + eff(run, 'orBonus') / 100)), eclats: 1, cartes: tirerCartes(run, 3 + eff(run, 'choixCartes'), 'tresor'), pris: false, ouvert: false };
+      run.ecran = 'tresor';
+    } else if (n.type === 'marchand') { run.marchand = genererMarchand(run); run.ecran = 'marchand'; }
+    else if (n.type === 'evenement') {
+      const libres = EVENEMENTS.filter((e) => !run.vus.includes(e.id));
+      const ev = choisir(run, libres.length ? libres : EVENEMENTS);
+      run.vus.push(ev.id); run.evenement = { id: ev.id, fait: null }; run.ecran = 'evenement';
+    } else if (n.type === 'brasero') { run.ecran = 'brasero'; run.brasero = { fait: null }; }
     return true;
   }
 
-  function evoluerFamiliers(etat) {
-    const evs = [];
-    (etat.familiers || []).forEach((f) => {
-      const ligne = LIGNES[f.ligne];
-      if (!ligne) return;
-      const cur = ligne.stades[f.stade || 0];
-      if (cur && cur.evolveAt && (f.combats || 0) >= cur.evolveAt && (f.stade || 0) < ligne.stades.length - 1) {
-        f.stade = (f.stade || 0) + 1;
-        evs.push({ ligne: f.ligne, nom: ligne.stades[f.stade].nom });
-      }
-    });
-    return evs;
-  }
-
-  function agirFamiliersDebutCombat(etat) {
-    const c = etat.combat;
-    if (!c) return;
-    const noeud = etat.carte && etat.carte.actuel ? trouverNoeud(etat, etat.carte.actuel) : null;
-    const boss = noeud && noeud.type === 'boss';
-    (etat.familiers || []).forEach((f) => {
-      const s = defStade(f);
-      if (!s) return;
-      if (s.debut) {
-        if (etat.perso === 'fumee') c.fumee += s.debut;
-        else if (etat.perso === 'silex') c.gel = (c.gel || 0) + s.debut;
-        else c.chaleur += s.debut;
-      }
-      if (s.gardeBoss && boss) c.bloc += s.gardeBoss;
-      if (s.mitigation) c.mitigationFamilier = (c.mitigationFamilier || 0) + s.mitigation;
-    });
-    c.mitigationDispo = c.mitigationFamilier || 0;
-  }
-
-  function agirFamiliersTour(etat) {
-    const c = etat.combat;
-    if (!c) return [];
-    const evs = [];
-    const vivants = () => c.ennemis.filter((e) => e.pv > 0);
-    (etat.familiers || []).forEach((f) => {
-      const s = defStade(f);
-      if (!s) return;
-      if (s.garde) { c.bloc += s.garde; evs.push({ sorte: 'garde', nom: s.nom, n: s.garde }); }
-      if (s.energieTour2 && c.tour === 2) { c.energie += s.energieTour2; evs.push({ sorte: 'energie', nom: s.nom, n: s.energieTour2 }); }
-      if (s.degats) {
-        const cibles = s.tous ? vivants() : (function() {
-          const v = vivants();
-          if (!v.length) return [];
-          const fav = v.filter((e) => multiplicateur(s.element, e.element) > 1);
-          const pool = fav.length ? fav : v;
-          return [pool.slice().sort((a, b) => (a.pv + a.bloc) - (b.pv + b.bloc))[0]];
-        })();
-        cibles.forEach((e) => {
-          const n = Math.max(1, Math.round(s.degats * multiplicateur(s.element, e.element)));
-          const hit = infligerEnnemi(e, n);
-          evs.push({ sorte: 'degats', nom: s.nom, uid: e.uid, n, multi: multiplicateur(s.element, e.element), mort: hit.mort });
-        });
-      }
-      if (s.frisson) {
-        const v = vivants();
-        if (v.length) {
-          const e = v[0];
-          e.frisson = (e.frisson || 0) + s.frisson;
-          evs.push({ sorte: 'frisson', nom: s.nom, uid: e.uid, n: s.frisson });
-        }
-      }
-    });
-    return evs;
-  }
-
-  function suggererCoup(etat) {
-    const c = etat.combat;
-    if (!c) return null;
-    const jouables = (c.main || []).filter((carte) => {
-      const d = defCarte(carte);
-      return c.energie >= d.cout && scoreCarte(etat, carte) > -Infinity;
-    });
-    if (!jouables.length) return { finTour: true, texte: 'Je terminerais le tour : aucune carte utile à jouer.' };
-    jouables.sort((a, b) => scoreCarte(etat, b) - scoreCarte(etat, a));
-    const carte = jouables[0];
-    const d = defCarte(carte);
-    const cible = ((d.degats || d.briser) && !d.tous) ? choisirCible(etat, d) : null;
-    const enn = cible ? (c.ennemis.find((e) => e.uid === cible) || null) : null;
-    let texte;
-    if (d.degats && enn) texte = 'Je jouerais ' + d.nom + ' sur ' + enn.nom + '.';
-    else if (d.degats && d.tous) texte = 'Je jouerais ' + d.nom + ' (tous les ennemis).';
-    else texte = 'Je jouerais ' + d.nom + '.';
-    const incoming = degatsEntrants(etat);
-    if (d.garde && incoming > c.bloc) texte += ' La garde couvre une partie des coups annoncés.';
-    return { uid: carte.uid, carte, cible, texte, score: scoreCarte(etat, carte), finTour: false };
-  }
-
-  /* ---------- partie et carte ---------- */
-  function deckDepart(persoId, rng) {
-    const p = PERSOS[persoId] || PERSOS.solen;
-    return p.depart.map((id) => instancier(id, rng));
-  }
-
-  function poolRecompense(etat, meta) {
-    const perso = etat.perso || 'solen';
-    const ids = Object.keys(CARTES).filter((id) => {
-      const c = CARTES[id];
-      if (c.starter && c.perso === perso) return false;
-      if (c.perso === perso || c.perso === 'commun') return true;
-      return false;
-    });
-    const locks = new Set();
-    const liste = [].concat(DEBLOCABLES[perso] || [], DEBLOCABLES.commun || []);
-    const debloques = (meta && meta.deblocages) || [];
-    liste.forEach((id) => { if (!debloques.includes(id)) locks.add(id); });
-    return ids.filter((id) => !locks.has(id));
-  }
-
-  function genererCarte(rng) {
-    let n = 0;
-    const noeud = (type, acte, vague, nom, desc, court) => {
-      const id = 'n' + (n++);
-      return { id, type, acte, vague: vague || '', nom, desc, court: court || nom, sorties: [] };
-    };
-    const c1 = [
-      noeud('combat', 1, 'intro', 'Premier seuil', 'Un chien de cendre veille encore.', 'Seuil')
-    ];
-    const c2 = [
-      noeud('combat', 1, 'mixte', 'Salle de suie', 'La flamme vacille.', 'Suie'),
-      noeud('combat', 1, 'froid', 'Couloir froid', 'Le givre rampe sur les murs.', 'Froid')
-    ];
-    const ev1 = choix(['chien_errant', 'fissure', 'coupe_huile'], rng);
-    const c3 = [
-      noeud('repos', 1, '', 'Brasero bas', 'Un peu de chaleur. Tu peux te soigner ou affûter une carte.', 'Brasero'),
-      noeud('evenement', 1, ev1, 'Une trace', 'Quelque chose t\'attend, et tes choix reviendront.', 'Trace'),
-      noeud('combat', 1, 'dure', 'Chambre noire', 'Ils sont plus nombreux.', 'Noire'),
-      noeud('boutique', 1, '', 'Étal du ramendeur', 'Une carte, une relique, une carte à laisser.', 'Étal')
-    ];
-    const c4 = [
-      noeud('boss', 1, 'matrone', 'Matrone de givre', 'Elle garde la porte entre les deux actes.', 'Matrone')
-    ];
-    const c5 = [
-      noeud('combat', 2, 'mixte2', 'Cour des cendres', 'L\'air se fait plus lourd.', 'Cour'),
-      noeud('elite', 2, 'rampant', 'Remonte de suie', 'Quelque chose rampe, trop large pour un chien.', 'Élite')
-    ];
-    const ev2 = choix(['serment', 'urne_scellee', 'coupe_huile'], rng);
-    const c6 = [
-      noeud('repos', 2, '', 'Brasero haut', 'Dernière halte avant la chambre du boss.', 'Brasero'),
-      noeud('evenement', 2, ev2, 'Un seuil', 'Un choix, dont la suite se verra dans la dernière chambre.', 'Seuil'),
-      noeud('boutique', 2, '', 'Atelier du ramendeur', 'Il a suivi la chaleur jusqu\'ici.', 'Atelier')
-    ];
-    const c7 = [
-      noeud('combat', 2, 'dure2', 'Vestibule', 'On entend déjà ce qui garde la porte.', 'Vestibule')
-    ];
-    const boss2 = rng() < 0.5 ? 'souffleur' : 'cloche';
-    const c8 = [
-      noeud('boss', 2, boss2, boss2 === 'cloche' ? 'Cloche de suie' : 'Le souffleur',
-        boss2 === 'cloche' ? 'Une cloche noire barre la dernière chambre.' : 'La dernière chambre.',
-        boss2 === 'cloche' ? 'Cloche' : 'Souffleur')
-    ];
-    const rangs = [c1, c2, c3, c4, c5, c6, c7, c8];
-    // Liaisons : chaque nœud rejoint 1 ou 2 nœuds du rang suivant, sans trop croiser.
-    for (let i = 0; i < rangs.length - 1; i++) {
-      const a = rangs[i], b = rangs[i + 1];
-      a.forEach((nd, k) => {
-        if (b.length === 1) nd.sorties = [b[0].id];
-        else if (a.length === 1) nd.sorties = b.map((x) => x.id);
-        else {
-          const i0 = Math.min(k, b.length - 1);
-          const i1 = Math.min(i0 + 1, b.length - 1);
-          nd.sorties = i0 === i1 ? [b[i0].id] : [b[i0].id, b[i1].id];
-          // Le nœud du milieu (s'il y en a un) peut aussi mener au dernier.
-          if (k === a.length - 1 && !nd.sorties.includes(b[b.length - 1].id)) nd.sorties.push(b[b.length - 1].id);
-        }
-      });
-      // Garantir que chaque nœud suivant a une entrée.
-      b.forEach((nd) => {
-        if (!a.some((p) => p.sorties.includes(nd.id))) {
-          a[Math.min(a.length - 1, Math.floor(rng() * a.length))].sorties.push(nd.id);
-        }
-      });
-    }
-    return {
-      rangs,
-      tous: rangs.reduce((acc, r) => acc.concat(r), []),
-      ouverts: [c1[0].id],
-      faits: [],
-      actuel: null
-    };
-  }
-
-  function trouverNoeud(etat, id) {
-    return etat.carte.tous.find((n) => n.id === id);
-  }
-
-  function nouvellePartie(persoId, meta, rng) {
-    const r = rng || Math.random;
-    const p = PERSOS[persoId] || PERSOS.solen;
-    const asc = (meta && meta.ascensionActive) || 0;
-    const pvMax = p.pv - (asc >= 7 ? 5 : 0);
-    return {
-      ecran: 'carte',
-      perso: p.id,
-      etage: 0,
-      or: 40 - (asc >= 3 ? 10 : 0),
-      pv: pvMax,
-      pvMax,
-      deck: deckDepart(p.id, r),
-      reliques: [],
-      flags: {},
-      familiers: [],
-      mentor: !!(meta && meta.mentor),
-      ascension: asc,
-      difficulte: 1,
-      combat: null,
-      choix: null,
-      choixReliques: null,
-      carte: genererCarte(r),
-      debut: Date.now(),
-      historique: [],
-      rngSeed: null
-    };
-  }
-
-  /* ---------- combat ---------- */
-  function ajusterPv(etat, base, elite) {
-    const d = etat.difficulte || 1;
-    const acte = (etat._acteEnCours) || 1;
-    const asc = etat.ascension || 0;
-    let v = base * d * (acte === 2 ? 1.16 : 1);
-    if (elite) v *= 1.12 + (asc >= 1 ? 0.06 : 0) + (asc >= 9 ? 0.10 : 0);
-    if (asc >= 1) v *= 1.04;
-    if (asc >= 6) v *= 1.06;
-    if (asc >= 9) v *= 1.05;
-    return Math.max(16, Math.round(v));
-  }
-
-  function creerEnnemi(etat, type, rng, elite) {
-    const m = ENNEMIS[type];
-    const e = {
-      uid: uid(rng), type, nom: m.nom, picto: m.picto, element: m.element || 'braise',
-      pv: ajusterPv(etat, m.pv, elite), pvMax: 0,
-      bloc: 0, force: 0, charge: false, cycle: 0, elite: !!elite,
-      intention: null
-    };
-    e.pvMax = e.pv;
-    const fl = etat.flags || {};
-    if (type === 'chien' && fl.chiensAmis) { e.pv = Math.max(10, e.pv - 7); e.pvMax = e.pv; }
-    if (type === 'chien' && fl.chiensHostiles) { e.pv += 6; e.pvMax = e.pv; e.force += 1; }
-    if (type === 'matrone' && fl.matroneColere) e.force += 2;
-    if (type === 'urne' && fl.urneOuverte) { e.pv += 8; e.pvMax = e.pv; }
-    if (type === 'urne' && fl.urneScellee) { e.pv = Math.max(12, e.pv - 8); e.pvMax = e.pv; }
-    const asc = etat.ascension || 0;
-    if (elite && asc >= 2) e.force += 1;
-    if ((type === 'matrone' || type === 'souffleur' || type === 'cloche') && asc >= 4) { e.pv = Math.round(e.pv * 1.06); e.pvMax = e.pv; }
-    if ((type === 'matrone' || type === 'souffleur' || type === 'cloche') && asc >= 10) { e.bloc += 5; e.force += 1; }
-    e.intention = INTENTS[type](e, rng);
+  // ---------- combat ----------
+  function creerEnnemi(run, c, id, invoque) {
+    const d = ENNEMIS[id];
+    let pv = entre(run, d.pv[0], d.pv[1]);
+    let mult = 1.12; if (run.brasier >= 1) mult += 0.1; if (run.brasier >= 7) mult += 0.2;
+    pv = Math.round(pv * mult);
+    const e = { u: ++c.uidE, id, nom: d.nom, sprite: d.sprite, pv, pvMax: pv, garde: 0, st: {}, mi: d.alea ? ent(run, d.m.length) : 0, intent: null, dernier: [], invoque: !!invoque,
+      rang: d.boss ? 'boss' : d.elite ? 'elite' : 'normal', bonusDeg: (run.brasier >= 4 ? 1 : 0) + (run.brasier >= 10 ? 1 : 0) };
+    if (d.elite && run.brasier >= 2) e.st.force = 1;
+    if (d.boss && run.brasier >= 9) e.st.force = (e.st.force || 0) + 1;
     return e;
   }
+  function choisirIntent(run, c, e) {
+    const d = ENNEMIS[e.id];
+    let m;
+    if (d.alea) {
+      let k = ent(run, d.m.length);
+      if (e.dernier.length >= 2 && e.dernier[0] === k && e.dernier[1] === k) k = (k + 1) % d.m.length;
+      e.dernier.unshift(k); e.dernier.length = Math.min(2, e.dernier.length);
+      m = d.m[k];
+    } else { m = d.m[e.mi % d.m.length]; e.mi++; }
+    if (m.t === 'inv' && vivants(c).length >= 4) m = { t: 'atk', v: 6 };
+    e.intent = Object.assign({}, m);
+  }
+  function vivants(c) { return c.ennemis.filter((e) => e.pv > 0); }
 
-  function composerVague(etat, vague, rng) {
-    etat._acteEnCours = (vague === 'souffleur' || vague === 'cloche' || vague === 'rampant' || (vague && String(vague).includes('2'))) ? 2 : 1;
-    if (vague === 'intro') return [creerEnnemi(etat, 'chien', rng)];
-    if (vague === 'mixte') {
-      const r = rng();
-      if (r < 0.34) return [creerEnnemi(etat, 'statue', rng)];
-      if (r < 0.62) return [creerEnnemi(etat, 'chien', rng), creerEnnemi(etat, 'chien', rng)];
-      return [creerEnnemi(etat, 'falot', rng), creerEnnemi(etat, 'chien', rng)];
-    }
-    if (vague === 'froid') return rng() < 0.55 ? [creerEnnemi(etat, 'statue', rng)] : [creerEnnemi(etat, 'urne', rng)];
-    if (vague === 'dure') return rng() < 0.5 ? [creerEnnemi(etat, 'statue', rng), creerEnnemi(etat, 'chien', rng)] : [creerEnnemi(etat, 'falot', rng), creerEnnemi(etat, 'urne', rng)];
-    if (vague === 'matrone') return [creerEnnemi(etat, 'matrone', rng, true)];
-    if (vague === 'mixte2') return rng() < 0.4 ? [creerEnnemi(etat, 'statue', rng), creerEnnemi(etat, 'falot', rng)] : (rng() < 0.5 ? [creerEnnemi(etat, 'rampant', rng)] : [creerEnnemi(etat, 'urne', rng), creerEnnemi(etat, 'chien', rng)]);
-    if (vague === 'rampant') return rng() < 0.5 ? [creerEnnemi(etat, 'rampant', rng, true)] : [creerEnnemi(etat, 'urne', rng, true), creerEnnemi(etat, 'falot', rng)];
-    if (vague === 'dure2') return rng() < 0.5 ? [creerEnnemi(etat, 'statue', rng), creerEnnemi(etat, 'urne', rng)] : [creerEnnemi(etat, 'rampant', rng), creerEnnemi(etat, 'falot', rng)];
-    if (vague === 'souffleur') return [creerEnnemi(etat, 'souffleur', rng, true)];
-    if (vague === 'cloche') return [creerEnnemi(etat, 'cloche', rng, true)];
-    return [creerEnnemi(etat, 'chien', rng)];
+  function commencerCombat(run, ids, type) {
+    const c = { type, ennemis: [], main: [], pioche: [], defausse: [], exil: [], j: { garde: 0, mana: 0, st: {} }, tour: 0, joues: 0, surch: false, fin: null, ev: [], uidE: 0, uidC: 0, xp: 0, dernier: null };
+    run.combat = c; run.ecran = 'combat';
+    ids.forEach((id) => c.ennemis.push(creerEnnemi(run, c, id)));
+    c.pioche = melanger(run, run.deck.map((x) => ({ u: x.u, id: x.id, niv: x.niv })));
+    // liens de tribus
+    const forge = lienVal(run, 'forge'); if (forge) gagnerGarde(run, c, forge, true);
+    const cendre = lienVal(run, 'cendre'); if (cendre) c.ennemis.forEach((e) => ajSt(e, 'brulure', cendre));
+    const givre = lienVal(run, 'givre'); if (givre) c.ennemis.forEach((e) => ajSt(e, 'gel', givre));
+    // effets de début de combat
+    effets(run).forEach((ef) => {
+      if (ef[0] === 'debutCombat') { if (ef[1] === 'garde') gagnerGarde(run, c, ef[2], true); else ajSt(c.j, ef[1], ef[2]); }
+      if (ef[0] === 'debutCombatEnnemis') c.ennemis.forEach((e) => ajSt(e, ef[1], ef[2]));
+    });
+    if (run.classe === 'silex' && run.rang >= 3) c.ennemis.forEach((e) => ajSt(e, 'gel', 2));
+    if (run.classe === 'ossian' && run.rang >= 2) gagnerAmes(run, c, 2);
+    if (run.classe === 'lierre') verifSauvage(run, c);
+    if (type === 'elite') run.stats.elites++;
+    debutTour(run, c);
   }
 
-  function appliquerReliquesDebutCombat(etat) {
-    const c = etat.combat;
-    if (aRelique(etat, 'coeur')) {
-      if (etat.perso === 'fumee') c.fumee += 1;
-      else if (etat.perso === 'silex') c.gel = (c.gel || 0) + 1;
-      else c.chaleur += 1;
-    }
-    c.mecheDispo = aRelique(etat, 'meche');
-    c.pierreDispo = aRelique(etat, 'pierre');
-    c.linceulUtilise = false;
-    const fl = etat.flags || {};
-    if (fl.gardeDepart) c.bloc += 2;
-    if (fl.braiseOfferte) {
-      if (etat.perso === 'fumee') c.fumee += 1; else if (etat.perso === 'silex') c.gel = (c.gel || 0) + 1; else c.chaleur += 1;
-    }
-    if (fl.huileVolee && !fl._huileConsommee) { c.huile += 6; fl._huileConsommee = true; }
-    const noeud = etat.carte && etat.carte.actuel ? trouverNoeud(etat, etat.carte.actuel) : null;
-    if (fl.bossFrisson && noeud && noeud.type === 'boss') c.frisson += 1;
-    if ((etat.ascension || 0) >= 8) {
-      c.ennemis.forEach((e) => { e.force = (e.force || 0) + 1; });
-    }
-  }
-
-  function demarrerCombat(etat, vague, rng, meta) {
-    const r = rng || Math.random;
-    const pioche = melanger(etat.deck.map((c) => ({ uid: c.uid, id: c.id, plus: !!c.plus })), r);
-    etat.combat = {
-      ennemis: composerVague(etat, vague, r),
-      pioche, defausse: [], main: [],
-      energie: 3, energieMax: 3, bonusEnergie: 0,
-      bloc: 0, chaleur: 0, fumee: 0, gel: 0, huile: 0, frisson: 0,
-      sel: null, tour: 0,
-      tuto: meta ? !meta.tutoVu : false,
-      mecheDispo: false, pierreDispo: false,
-      vague
-    };
-    appliquerReliquesDebutCombat(etat);
-    debutTourJoueur(etat, r);
-    etat.ecran = 'combat';
-    return etat;
-  }
-
-  function piocher(etat, n, rng) {
-    const c = etat.combat;
-    const r = rng || Math.random;
-    let k = 0;
+  function ajSt(ent_, s, n) { ent_.st[s] = (ent_.st[s] || 0) + n; if (ent_.st[s] <= 0) delete ent_.st[s]; }
+  function tailleMain(run) { return 4 + eff(run, 'mainPlus'); }
+  function piocher(run, c, n) {
     for (let i = 0; i < n; i++) {
+      if (c.main.length >= 8) return;
       if (!c.pioche.length) {
-        if (!c.defausse.length) break;
-        c.pioche = melanger(c.defausse, r);
-        c.defausse = [];
+        if (!c.defausse.length) return;
+        c.pioche = melanger(run, c.defausse); c.defausse = [];
       }
       c.main.push(c.pioche.pop());
-      k++;
     }
-    return k;
+  }
+  function remplirMain(run, c) { const t = tailleMain(run); if (c.main.length < t) piocher(run, c, t - c.main.length); }
+
+  function debutTour(run, c) {
+    c.tour++; run.stats.tours++;
+    c.j.garde = 0; c.joues = 0; c.surch = false;
+    let mana = 3 + eff(run, 'manaTour');
+    if (c.tour === 1) mana += eff(run, 'premierTourMana');
+    if (run.classe === 'grenat' && run.rang >= 2 && run.pv < run.pvMax / 2) mana += 1;
+    c.j.mana = mana;
+    if (c.j.st.poison) { perdrePV(run, c, c.j.st.poison, 'poison'); ajSt(c.j, 'poison', -1); if (c.fin) return; }
+    effets(run).forEach((ef) => {
+      if (ef[0] === 'debutTour') { if (ef[1] === 'garde') gagnerGarde(run, c, ef[2], true); else if (ef[1] === 'seve') gagnerSeve(run, c, ef[2]); else ajSt(c.j, ef[1], ef[2]); }
+      if (ef[0] === 'debutTourEnnemiAlea') { const v = vivants(c); if (v.length) ajSt(choisir(run, v), ef[1], ef[2]); }
+    });
+    if (run.classe === 'solen' && run.rang >= 3) ajSt(c.j, 'chaleur', 1);
+    const gpc = eff(run, 'gardeParChaleur'); if (gpc) { const g = 2 * Math.floor((c.j.st.chaleur || 0) / 3); if (g) gagnerGarde(run, c, g, true); }
+    c.defausse.push(...c.main); c.main = [];
+    remplirMain(run, c);
+    vivants(c).forEach((e) => choisirIntent(run, c, e));
   }
 
-  function debutTourJoueur(etat, rng) {
-    const c = etat.combat;
-    c.tour += 1;
-    c.bloc = 0;
-    c.energie = c.energieMax + (c.bonusEnergie || 0);
-    c.bonusEnergie = 0;
-    if (aRelique(etat, 'bol') && c.tour === 2) c.energie += 1;
-    if (aRelique(etat, 'cendrex')) c.bloc += 2;
-    if (c.tour > 1 && c.chaleur > 0) c.chaleur = Math.max(0, c.chaleur - 1);
-    if (c.tour > 1 && c.fumee > 0) c.fumee = Math.max(0, c.fumee - 1);
-    c.sel = null;
-    c.pierreDispo = aRelique(etat, 'pierre');
-    c.evsFamiliers = (c.tour === 1 ? (agirFamiliersDebutCombat(etat), agirFamiliersTour(etat)) : agirFamiliersTour(etat));
-    piocher(etat, 5, rng);
+  function gagnerGarde(run, c, n, brut) {
+    if (n <= 0) return 0;
+    let g = n + (c.j.st.robustesse || 0) + eff(run, 'gardePlus');
+    if (!brut && c.j.st.fragile) g = Math.floor(g * 0.75);
+    c.j.garde += g; c.ev.push({ k: 'garde', n: g });
+    return g;
+  }
+  function gagnerSeve(run, c, n) { ajSt(c.j, 'seve', n); verifSauvage(run, c); }
+  function verifSauvage(run, c) {
+    if (run.classe !== 'lierre' || c.j.st.sauvage) return;
+    const seuil = run.rang >= 3 ? 6 : 9;
+    if ((c.j.st.seve || 0) >= seuil) { c.j.st.sauvage = 1; ajSt(c.j, 'force', 1); ajSt(c.j, 'epines', 2); c.ev.push({ k: 'sauvage' }); }
+  }
+  function gagnerAmes(run, c, n) {
+    ajSt(c.j, 'ames', n);
+    if (run.classe === 'ossian' && run.rang >= 3) for (let i = 0; i < n; i++) { const v = vivants(c); if (v.length) frapper(run, c, choisir(run, v), 2, null); }
   }
 
-  function degatsCarte(d, c, etat) {
-    let n = d.degats || 0;
-    if (d.parChaleur) n += d.parChaleur * (c.chaleur || 0);
-    if (d.parFumee2) n += d.parFumee2 * Math.floor((c.fumee || 0) / 2);
-    let consommeChaleur = 0, consommeFumee = 0;
-    const seuilE = d.eclatSeuil || 3;
-    const degE = d.eclatDegats || 16;
-    if (d.eclat && c.chaleur >= seuilE) { n = degE; consommeChaleur = seuilE; }
-    if (d.etouffe && c.fumee >= 2) { n = d.etouffeDegats || 12; consommeFumee = 2; }
-    let consommeGel = 0;
-    if (d.briser) {
-      const g = c.gel || 0;
-      n = g * (d.briserDegats || 4);
-      consommeGel = g;
+  function degatsJoueur(run, c, base, cible, d) {
+    let dmg = base + (c.j.st.force || 0);
+    if (d && d.t === 'L') {
+      dmg += eff(run, 'lamePlus') + lienVal(run, 'bete');
+      if (run.classe === 'solen' && run.rang >= 2) dmg += Math.floor((c.j.st.chaleur || 0) / 2);
+      if (run.classe === 'grenat') dmg += Math.min(5, c.j.st.rage || 0);
     }
-    if (d.cassure && (c.gel || 0) >= (d.cassureSeuil || 3)) n = d.cassureDegats || 16;
-    if (c.huile) n += c.huile;
-    if (etat && c.mecheDispo) n += 4;
-    if (c.frisson > 0) n = Math.floor(n * 0.75);
-    return { n, consommeChaleur, consommeFumee, consommeGel };
+    if (cible && cible.st.faible) dmg += eff(run, 'bonusFaible');
+    if (c.j.st.faible) dmg = Math.floor(dmg * 0.75);
+    if (cible && cible.st.expose) dmg = Math.floor(dmg * 1.5);
+    return Math.max(0, dmg);
+  }
+  function frapper(run, c, e, dmg, source) {
+    if (!e || e.pv <= 0) return 0;
+    let reste = dmg;
+    if (e.garde > 0) { const a = Math.min(e.garde, reste); e.garde -= a; reste -= a; }
+    e.pv -= reste;
+    c.ev.push({ k: 'deg', u: e.u, n: reste, bloque: dmg - reste });
+    if (!c.sim) { run.stats.degats += reste; progresQuete(run, 'deg', reste); }
+    const d = ENNEMIS[e.id];
+    if (source === 'carte' && d.passif && d.passif[0] === 'epines' && e.pv > 0) recevoir(run, c, d.passif[1], null, true);
+    if (e.pv <= 0) mourir(run, c, e);
+    return reste;
+  }
+  function mourir(run, c, e) {
+    e.pv = 0; e.garde = 0; e.intent = null;
+    c.ev.push({ k: 'mort', u: e.u });
+    const d = ENNEMIS[e.id];
+    c.xp += e.invoque ? 2 : d.boss ? 45 : d.elite ? 20 : 8;
+    if (!c.sim) { run.stats.tues++; progresQuete(run, 'tue', 1); }
+    if (d.boss) run.stats.boss++;
+    if (run.classe === 'grenat' && run.rang >= 3) soigner(run, c, 5);
+    if (d.passif && d.passif[0] === 'explose') recevoir(run, c, d.passif[1], null, true);
+    if (!vivants(c).length && !c.fin) c.fin = 'victoire';
+  }
+  function recevoir(run, c, dmg, attaquant, brut) {
+    if (c.fin === 'defaite') return 0;
+    if (!brut) {
+      if (c.j.st.esquive) { ajSt(c.j, 'esquive', -1); c.ev.push({ k: 'esquive' }); return 0; }
+      if (c.j.st.expose) dmg = Math.floor(dmg * 1.5);
+      if (c.j.st.brume) { ajSt(c.j, 'brume', -1); dmg = Math.floor(dmg / 2); }
+    }
+    let reste = dmg;
+    if (c.j.garde > 0) { const a = Math.min(c.j.garde, reste); c.j.garde -= a; reste -= a; if (!c.sim && a) progresQuete(run, 'garde', a); }
+    c.ev.push({ k: 'touche', n: reste, bloque: dmg - reste });
+    if (reste > 0) perdrePV(run, c, reste);
+    if (attaquant && c.j.st.epines && attaquant.pv > 0) frapper(run, c, attaquant, c.j.st.epines, 'epines');
+    return reste;
+  }
+  function perdrePV(run, c, n, raison) {
+    run.pv -= n;
+    if (run.classe === 'grenat') ajSt(c.j, 'rage', 1);
+    if (run.pv <= 0) { run.pv = 0; c.fin = 'defaite'; }
+  }
+  function soigner(run, c, n) { const avant = run.pv; run.pv = Math.min(run.pvMax, run.pv + n); if (c) c.ev.push({ k: 'soin', n: run.pv - avant }); return run.pv - avant; }
+  function degatsEnnemi(run, c, e, base) {
+    let d = base + (e.st.force || 0) + e.bonusDeg;
+    if (e.st.faible) d = Math.floor(d * 0.75);
+    if (e.st.gel) d -= Math.min(e.st.gel, Math.floor(d / 2));
+    return Math.max(0, d);
+  }
+  function intentAffiche(run, c, e) {
+    const m = e.intent; if (!m) return null;
+    const o = { t: m.t, n: m.n || 1 };
+    if (m.t === 'atk' || m.t === 'atkdeb' || m.t === 'atkdef') {
+      let d = degatsEnnemi(run, c, e, m.v);
+      if (c.j.st.expose) d = Math.floor(d * 1.5);
+      o.deg = d;
+    }
+    if (m.t === 'def' || m.t === 'atkdef') o.garde = m.g || m.v;
+    if (m.t === 'buf') o.s = m.s, o.v = m.v;
+    if (m.t === 'deb' || m.t === 'atkdeb') o.s = m.s, o.v = m.n2 || m.v;
+    if (m.t === 'soin') o.v = m.v;
+    if (m.t === 'inv') o.id = m.id;
+    return o;
+  }
+  function degatsEntrants(run, c) {
+    return vivants(c).reduce((s, e) => { const o = intentAffiche(run, c, e); return s + (o && o.deg ? o.deg * o.n : 0); }, 0);
   }
 
-  function apercu(etat, d) {
-    const c = etat.combat;
-    if (!c || !d) return '';
-    const bits = [];
-    if (d.degats || d.briser) {
-      const calc = degatsCarte(d, c, etat);
-      bits.push(d.tous ? ('Infligera ' + calc.n + ' dégâts à tous') : ('Infligera ' + calc.n + ' dégâts'));
-      if (d.parChaleur) bits.push('(+' + d.parChaleur + ' par Chaleur, tu en as ' + c.chaleur + ')');
-      if (d.parFumee2) bits.push('(+' + d.parFumee2 + ' par 2 Fumée, tu en as ' + c.fumee + ')');
-      if (d.briser) bits.push('(4 à 5 par Gel, tu en as ' + (c.gel || 0) + ')');
-      if (d.cassure) bits.push((c.gel || 0) >= (d.cassureSeuil || 3) ? 'Le Gel suffit, le coup est plus dur.' : 'Il te faut encore du Gel.');
-      if (d.eclat) bits.push(c.chaleur >= (d.eclatSeuil || 3) ? ('Éclat allumé, consomme ' + (d.eclatSeuil || 3) + ' Chaleur') : ('Il te faut 3 Chaleur pour l\'éclat (tu en as ' + c.chaleur + ')'));
-      if (d.etouffe) bits.push(c.fumee >= 2 ? 'Étouffement allumé, consomme 2 Fumée' : ('Il te faut 2 Fumée (tu en as ' + c.fumee + ')'));
-      if (c.huile) bits.push('dont +' + c.huile + ' d\'huile');
-      if (c.mecheDispo) bits.push('dont +4 de mèche');
-      if (c.frisson > 0) bits.push('réduit par Frisson');
-    }
-    if (d.garde) bits.push('+' + d.garde + ' garde');
-    if (d.disparait && c.fumee >= 2) bits.push('pioche 2 (consomme 2 Fumée)');
-    if (d.chaleur) bits.push('+' + d.chaleur + ' Chaleur');
-    if (d.fumee && !d.disparait) bits.push('+' + d.fumee + ' Fumée');
-    if (d.pioche && !d.disparait) bits.push('pioche ' + d.pioche);
-    if (d.huile) bits.push('prochaine attaque +' + d.huile);
-    if (d.resine) bits.push('+1 énergie au prochain tour');
-    if (d.frissonDonne) bits.push('Frisson ' + d.frissonDonne);
-    return bits.filter(Boolean).join(' · ');
+  function ctx(run, c, cible, d) {
+    const x = {
+      run, c, cible, carte: d,
+      deg(n, e) { e = e || cible; if (!e || e.pv <= 0) { const v = vivants(c); e = v[0]; } if (!e) return; frapper(run, c, e, degatsJoueur(run, c, n, e, d), 'carte'); },
+      degTous(n) { vivants(c).forEach((e) => frapper(run, c, e, degatsJoueur(run, c, n, e, d), 'carte')); },
+      degAlea(n) { const v = vivants(c); if (v.length) { const e = choisir(run, v); frapper(run, c, e, degatsJoueur(run, c, n, e, d), 'carte'); } },
+      garde(n) { gagnerGarde(run, c, n); },
+      statut(e, s, n) { if (e && e.pv > 0 && n) ajSt(e, s, n); },
+      statutTous(s, n) { vivants(c).forEach((e) => ajSt(e, s, n)); },
+      soi(s, n) { if (s === 'esquive' || s === 'brume') { ajSt(c.j, s, n); if (s === 'brume' && n > 0) brumeGagnee(run, c); } else if (s === 'seve') gagnerSeve(run, c, n); else ajSt(c.j, s, n); },
+      pioche(n) { piocher(run, c, n); },
+      mana(n) { if (c.surch) { ajSt(c.j, 'force', 1); c.ev.push({ k: 'surcharge' }); } else { c.j.mana += n; c.surch = true; } },
+      soin(n) { soigner(run, c, n); },
+      perdPV(n) { run.pv = Math.max(1, run.pv - n); if (run.classe === 'grenat') ajSt(c.j, 'rage', 1); c.ev.push({ k: 'touche', n, bloque: 0 }); },
+      tribu(tr) { return tribuCompte(run, tr); },
+      st(s) { return c.j.st[s] || 0; },
+      eff(k) { return eff(run, k); },
+      ennemisVivants() { return vivants(c); },
+      briser(par) {
+        const e = cible && cible.pv > 0 ? cible : vivants(c)[0]; if (!e) return;
+        const g = e.st.gel || 0;
+        frapper(run, c, e, degatsJoueur(run, c, (par + eff(run, 'briserPlus')) * Math.max(1, g), e, d), 'carte');
+        if (g) { delete e.st.gel; if (run.classe === 'silex' && run.rang >= 2) gagnerGarde(run, c, 2 * g, true); }
+      },
+      decocher() { decocher(run, c); },
+      rouages(n) { ajouterRouages(run, c, n); },
+      seve(n) { gagnerSeve(run, c, n); },
+      ame(n) { gagnerAmes(run, c, n); }
+    };
+    return x;
   }
-
-  function infligerEnnemi(e, n) {
-    let reste = n, bloque = 0, pv = 0;
-    if (e.bloc > 0) {
-      const a = Math.min(e.bloc, reste);
-      e.bloc -= a; reste -= a; bloque = a;
-    }
-    if (reste > 0) { e.pv = Math.max(0, e.pv - reste); pv = reste; }
-    return { bloque, pv, mort: e.pv <= 0 };
+  function brumeGagnee(run, c) { if (run.classe === 'fumee' && run.rang >= 2) vivants(c).forEach((e) => ajSt(e, 'faible', 1)); }
+  function decocher(run, c) {
+    const n = c.j.st.fleches || 0; if (!n) return;
+    const par = (run.rang >= 2 ? 3 : 2) + eff(run, 'flechePlus');
+    for (let i = 0; i < n; i++) { const v = vivants(c); if (!v.length) break; const e = choisir(run, v); frapper(run, c, e, par + (e.st.expose ? Math.floor(par / 2) : 0), 'fleche'); }
+    c.ev.push({ k: 'fleches', n });
   }
-
-  function infligerJoueur(etat, n) {
-    const c = etat.combat;
-    let reste = n, bloque = 0, pv = 0;
-    if (c.bloc > 0) {
-      const a = Math.min(c.bloc, reste);
-      c.bloc -= a; reste -= a; bloque = a;
-    }
-    if (reste > 0 && c.mitigationDispo) {
-      const m = Math.min(c.mitigationDispo, reste);
-      c.mitigationDispo -= m; reste -= m; bloque += m;
-    }
-    if (reste > 0) { etat.pv = Math.max(0, etat.pv - reste); pv = reste; }
-    return { bloque, pv, mort: etat.pv <= 0 };
-  }
-
-  function gagnerRessource(etat, chaleur, fumee, gel) {
-    const c = etat.combat;
-    let garde = 0;
-    if (chaleur) c.chaleur += chaleur;
-    if (fumee) c.fumee += fumee;
-    if (gel) c.gel = (c.gel || 0) + gel;
-    if ((chaleur || fumee || gel) && aRelique(etat, 'souffletcuivre')) {
-      c.bloc += 2; garde = 2;
-    }
-    return garde;
-  }
-
-  /* Joue une carte. Retourne des événements pour l'interface, ou {ok:false, raison}. */
-  function jouerCarte(etat, carteUid, cibleUid, rng) {
-    const c = etat.combat;
-    const r = rng || Math.random;
-    const carte = c.main.find((x) => x.uid === carteUid);
-    if (!carte) return { ok: false, raison: 'carte' };
-    const d = defCarte(carte);
-    if (c.energie < d.cout) return { ok: false, raison: 'energie' };
-    if ((d.degats || d.briser) && !d.tous && !cibleUid) return { ok: false, raison: 'cible' };
-    c.energie -= d.cout;
-    const idx = c.main.findIndex((x) => x.uid === carteUid);
-    if (idx >= 0) c.main.splice(idx, 1);
-    c.defausse.push(carte);
-    c.sel = null;
-
-    const evts = { ok: true, garde: 0, chaleur: 0, fumee: 0, gel: 0, pioche: 0, hits: [], pierre: false };
-
-    if (d.cout === 0 && c.pierreDispo) {
-      c.pierreDispo = false;
-      evts.pioche += piocher(etat, 1, r);
-      evts.pierre = true;
-    }
-    if (d.garde) { c.bloc += d.garde; evts.garde += d.garde; }
-    if (d.chaleur) { evts.garde += gagnerRessource(etat, d.chaleur, 0); evts.chaleur += d.chaleur; }
-    if (d.fumee) { evts.garde += gagnerRessource(etat, 0, d.fumee, 0); evts.fumee += d.fumee; }
-    if (d.gel) { evts.garde += gagnerRessource(etat, 0, 0, d.gel); evts.gel += d.gel; }
-    if (d.huile) c.huile += d.huile;
-    if (d.resine) c.bonusEnergie += d.resine;
-    if (d.pioche && !d.disparait) evts.pioche += piocher(etat, d.pioche, r);
-    if (d.disparait && c.fumee >= 2) {
-      c.fumee -= 2;
-      evts.fumee -= 2;
-      evts.pioche += piocher(etat, 2, r);
-    }
-
-    if (d.degats || d.briser) {
-      const calc = degatsCarte(d, c, etat);
-      if (calc.consommeChaleur) c.chaleur -= calc.consommeChaleur;
-      if (calc.consommeFumee) c.fumee -= calc.consommeFumee;
-      if (calc.consommeGel) { c.gel = Math.max(0, (c.gel || 0) - calc.consommeGel); evts.gel = (evts.gel || 0) - calc.consommeGel; }
-      if (c.huile) c.huile = 0;
-      if (c.mecheDispo) c.mecheDispo = false;
-      const cibles = d.tous ? c.ennemis.filter((e) => e.pv > 0) : [c.ennemis.find((e) => e.uid === cibleUid)].filter(Boolean);
-      let fris = d.frissonDonne || 0;
-      if (d.etouffe && calc.consommeFumee) fris = 2;
-      cibles.forEach((e) => {
-        const hit = infligerEnnemi(e, calc.n);
-        if (fris) e._frissonJoueur = (e._frissonJoueur || 0) + fris; // not used; frisson is on player from enemies
-        evts.hits.push({ uid: e.uid, n: calc.n, ...hit });
-      });
-      // etouffement applies Frisson to... the design said apply Frisson. In our game Frisson is on the player (weakness). For enemies, we could reduce their next attack. I'll apply a "froid" mark: reduce enemy force or next attack. Simpler: apply as player-side? That doesn't make sense. Apply a weakness to the ENEMY: their next attack deals 25% less. I'll store e.frisson.
-      if (fris) cibles.forEach((e) => { e.frisson = (e.frisson || 0) + fris; });
-    }
-
-    evts.vivants = c.ennemis.filter((e) => e.pv > 0).length;
-    evts.joueurMort = etat.pv <= 0;
-    evts.victoire = evts.vivants === 0;
-    return evts;
-  }
-
-  function agirEnnemi(etat, e) {
-    if (!e || e.pv <= 0 || !etat.combat) return { hits: [] };
-    const int = e.intention || {};
-    const evts = { hits: [], force: 0, garde: 0, frisson: 0 };
-    if (int.force) { e.force += int.force; evts.force = int.force; }
-    if (int.garde) { e.bloc += int.garde; evts.garde = int.garde; }
-    if (int.frisson) { etat.combat.frisson += int.frisson; evts.frisson = int.frisson; }
-    if (int.rien) return evts;
-    const coups = int.coups || (int.degats ? 1 : 0);
-    let dmg = (int.degats || 0) + (e.force || 0);
-    if (e.frisson > 0) { dmg = Math.floor(dmg * 0.75); e.frisson -= 1; }
-    for (let i = 0; i < coups; i++) {
-      evts.hits.push(infligerJoueur(etat, dmg));
-    }
-    return evts;
-  }
-
-  function finTour(etat, rng) {
-    const c = etat.combat;
-    const r = rng || Math.random;
-    const evts = { linceul: 0, ennemis: [], joueurMort: false, nouveauTour: false };
-    c.sel = null;
-    if (c.frisson > 0) c.frisson -= 1;
-    if (aRelique(etat, 'linceul') && c.energie === 0 && !c.linceulUtilise) { c.bloc += 4; c.linceulUtilise = true; evts.linceul = 4; }
-    while (c.main.length) c.defausse.push(c.main.pop());
-    const vivants = c.ennemis.filter((e) => e.pv > 0);
-    vivants.forEach((e) => evts.ennemis.push({ uid: e.uid, act: agirEnnemi(etat, e) }));
-    evts.joueurMort = etat.pv <= 0;
-    evts.victoire = c.ennemis.every((e) => e.pv <= 0);
-    if (!evts.joueurMort && !evts.victoire) {
-      c.ennemis.filter((e) => e.pv > 0).forEach((e) => {
-        e.bloc = 0;
-        e.intention = INTENTS[e.type](e, r);
-      });
-      debutTourJoueur(etat, r);
-      evts.nouveauTour = true;
-    }
-    return evts;
-  }
-
-  /* ---------- après combat, repos, boutique, reliques ---------- */
-  function orDuNoeud(noeud) {
-    if (!noeud) return 14;
-    if (noeud.type === 'boss') return 36;
-    if (noeud.type === 'elite') return 24;
-    return 16;
-  }
-
-  function finCombat(etat, gagne, rng, meta) {
-    const r = rng || Math.random;
-    if (!gagne) {
-      etat.ecran = 'defaite';
-      etat.combat = null;
-      return { fin: 'defaite' };
-    }
-    const noeud = etat.carte && etat.carte.actuel ? trouverNoeud(etat, etat.carte.actuel) : null;
-    const ratio = etat.pv / etat.pvMax;
-    if (ratio > 0.85) etat.difficulte = Math.min(1.18, (etat.difficulte || 1) + 0.04);
-    else if (ratio < 0.35) etat.difficulte = Math.max(0.9, (etat.difficulte || 1) - 0.05);
-    etat.or += orDuNoeud(noeud) + Math.floor(r() * 7);
-    (etat.familiers || []).forEach((f) => { f.combats = (f.combats || 0) + 1; });
-    const evos = evoluerFamiliers(etat);
-    const offreF = proposerCapture(etat, noeud, r);
-    etat.combat = null;
-    etat.evolutions = evos;
-    etat.offreFamilier = offreF;
-
-    const estBoss = noeud && noeud.type === 'boss';
-    const estElite = noeud && noeud.type === 'elite';
-    const estFinal = noeud && (noeud.vague === 'souffleur' || noeud.vague === 'cloche');
-    if (estFinal) {
-      etat.ecran = 'victoire';
-      return { fin: 'victoire', evos };
-    }
-    if (offreF) {
-      etat.ecran = 'familier';
-      etat._apresFamilier = (estBoss || estElite) ? 'relique' : 'recompense';
-      if (estBoss || estElite) {
-        etat.choixReliques = tirerReliques(etat, 3, r);
-        etat.choix = tirerOffre(etat, meta, 3, r);
-      } else {
-        etat.choix = tirerOffre(etat, meta, 3, r);
-      }
-      return { fin: 'familier', evos, offre: offreF };
-    }
-    // Relique après elite ou boss d'acte 1
-    if (estBoss || estElite) {
-      etat.choixReliques = tirerReliques(etat, 3, r);
-      etat.ecran = 'relique';
-      etat._apresRelique = 'recompense';
-      etat.choix = tirerOffre(etat, meta, 3, r);
-      return { fin: 'relique' };
-    }
-    etat.ecran = 'recompense';
-    etat.choix = tirerOffre(etat, meta, 3, r);
-    return { fin: 'recompense' };
-  }
-
-  function tirerOffre(etat, meta, n, rng) {
-    const pool = poolRecompense(etat, meta);
-    let ids = melanger(pool, rng).slice(0, n);
-    while (ids.length < n) ids.push(choix(pool.length ? pool : Object.keys(CARTES), rng));
-    // Éviter les doublons dans l'offre
-    ids = [...new Set(ids)];
-    while (ids.length < n) ids.push(choix(Object.keys(CARTES), rng));
-    return ids.slice(0, n).map((id) => instancier(id, rng));
-  }
-
-  function tirerReliques(etat, n, rng) {
-    const tenues = new Set((etat.reliques || []).map((r) => r.id || r));
-    const pool = Object.keys(RELIQUES).filter((id) => !tenues.has(id));
-    if (!pool.length) return [];
-    return melanger(pool, rng).slice(0, n).map((id) => ({ id }));
-  }
-
-  function donnerRelique(etat, id) {
-    if (aRelique(etat, id)) return;
-    etat.reliques.push({ id });
-    if (id === 'anneau') {
-      etat.pvMax += 8;
-      etat.pv = Math.min(etat.pvMax, etat.pv + 8);
+  function ajouterRouages(run, c, n) {
+    ajSt(c.j, 'rouages', n);
+    while ((c.j.st.rouages || 0) >= 4) {
+      ajSt(c.j, 'rouages', -4);
+      if (c.main.length < 8) { c.main.push({ u: 'g' + (++c.uidC), id: 'rivet', niv: run.rang >= 2 ? 1 : 0, gen: true }); c.ev.push({ k: 'rivet' }); }
     }
   }
 
-  function ajouterCarte(etat, id, rng, plus) {
-    etat.deck.push(instancier(id, rng, plus));
+  function peutJouer(run, c, i) {
+    const inst = c.main[i]; if (!inst || c.fin) return false;
+    return cout(inst, c) <= c.j.mana;
+  }
+  function besoinCible(inst) { return def(inst).cib === 'e'; }
+
+  function jouerCarte(run, c, i, cibleU) {
+    if (!c || c.fin) return { ok: false, raison: 'fini' };
+    const inst = c.main[i]; if (!inst) return { ok: false, raison: 'carte' };
+    const d = def(inst);
+    const k = cout(inst, c);
+    if (k > c.j.mana) return { ok: false, raison: 'mana' };
+    let cible = null;
+    if (d.cib === 'e') {
+      const v = vivants(c);
+      cible = v.find((e) => e.u === cibleU) || (v.length === 1 ? v[0] : null);
+      if (!cible) return { ok: false, raison: 'cible' };
+    }
+    c.ev = [];
+    c.j.mana -= k;
+    c.main.splice(i, 1);
+    c.joues++;
+    if (!c.sim) run.stats.cartesJouees++;
+    const v = vals(inst);
+    d.f(ctx(run, c, cible, d), v);
+    // compétences de classe
+    const cl = run.classe;
+    if (cl === 'solen' && d.t === 'S') ajSt(c.j, 'chaleur', 1);
+    if (cl === 'fumee' && c.joues === (run.rang >= 3 ? 2 : 3)) { ajSt(c.j, 'brume', 1); brumeGagnee(run, c); c.ev.push({ k: 'brume' }); }
+    if (cl === 'silex' && d.t === 'L' && !d.sansGel) { if (d.cib === 'tous') vivants(c).forEach((e) => ajSt(e, 'gel', 1)); else if (cible && cible.pv > 0) ajSt(cible, 'gel', 1); }
+    if (cl === 'ivra' && (d.t === 'L' || (run.rang >= 3 && d.t === 'S'))) ajSt(c.j, 'fleches', 1);
+    if (cl === 'bram' && !inst.gen) ajouterRouages(run, c, run.rang >= 3 && d.tr === 'forge' ? 2 : 1);
+    if (cl === 'lierre') { gagnerSeve(run, c, 1); if (run.rang >= 2 && d.t === 'S') ajSt(c.j, 'epines', 1); }
+    if (d.t === 'S') { const sg = eff(run, 'sortGarde'); if (sg) gagnerGarde(run, c, sg, true); if (!c.sim) progresQuete(run, 'sort', 1); }
+    const exil = d.exil || (d.exilSi && d.exilSi(v)) || inst.gen;
+    if (exil) { if (!inst.gen) c.exil.push(inst); if (cl === 'ossian') gagnerAmes(run, c, 1); }
+    else c.defausse.push(inst);
+    c.dernier = inst.id;
+    if (!c.fin) remplirMain(run, c);
+    if (c.fin === 'victoire' && !c.sim) finCombat(run);
+    else if (c.fin === 'defaite' && !c.sim) defaite(run);
+    return { ok: true, ev: c.ev };
   }
 
-  function retirerCarte(etat, uidCarte) {
-    const i = etat.deck.findIndex((c) => c.uid === uidCarte);
-    if (i < 0 || etat.deck.length <= 5) return false;
-    etat.deck.splice(i, 1);
+  function finTour(run, c) {
+    if (!c || c.fin) return;
+    c.ev = [];
+    if (run.classe === 'ivra') { decocher(run, c); delete c.j.st.fleches; }
+    if (c.fin === 'victoire') { if (!c.sim) finCombat(run); return; }
+    if (c.j.st.brulure) { perdrePV(run, c, c.j.st.brulure); ajSt(c.j, 'brulure', -1); }
+    ['faible', 'expose', 'fragile'].forEach((s) => { if (c.j.st[s]) ajSt(c.j, s, -1); });
+    c.defausse.push(...c.main.filter((x) => !x.gen)); c.main = [];
+    if (c.fin) { if (!c.sim) defaite(run); return; }
+    // tour des ennemis
+    for (const e of c.ennemis.slice()) {
+      if (e.pv <= 0) continue;
+      e.garde = 0;
+      const d = ENNEMIS[e.id];
+      if (e.st.poison) { frapper(run, c, e, e.st.poison, 'poison'); ajSt(e, 'poison', -1); if (e.pv <= 0) continue; }
+      if (d.passif && d.passif[0] === 'carapace') e.garde += d.passif[1];
+      agir(run, c, e);
+      if (c.fin === 'defaite') break;
+      if (e.pv > 0 && e.st.brulure) { frapper(run, c, e, e.st.brulure, 'brulure'); ajSt(e, 'brulure', -1); }
+      if (e.pv > 0 && d.passif && d.passif[0] === 'regen') e.pv = Math.min(e.pvMax, e.pv + d.passif[1]);
+      if (e.pv > 0 && d.passif && d.passif[0] === 'colere') ajSt(e, 'force', d.passif[1]);
+      ['faible', 'expose'].forEach((s) => { if (e.st[s]) ajSt(e, s, -1); });
+      if (c.fin) break;
+    }
+    if (c.fin === 'defaite') { if (!c.sim) defaite(run); return; }
+    if (c.fin === 'victoire') { if (!c.sim) finCombat(run); return; }
+    debutTour(run, c);
+    if (c.fin === 'defaite' && !c.sim) defaite(run);
+  }
+
+  function agir(run, c, e) {
+    const m = e.intent; if (!m) return;
+    c.ev.push({ k: 'agit', u: e.u, t: m.t });
+    const coups = (v, n) => { for (let i = 0; i < (n || 1); i++) { if (e.pv <= 0 || c.fin) break; recevoir(run, c, degatsEnnemi(run, c, e, v), e); } };
+    const debuff = (s, n) => {
+      if (s === 'suie') { for (let i = 0; i < n; i++) c.defausse.push({ u: 's' + (++c.uidC), id: 'suie', niv: 0, gen: false, temp: true }); c.ev.push({ k: 'suie', n }); }
+      else ajSt(c.j, s, n);
+    };
+    switch (m.t) {
+      case 'atk': coups(m.v, m.n); break;
+      case 'def': e.garde += m.v; break;
+      case 'buf': ajSt(e, m.s, m.v); break;
+      case 'deb': debuff(m.s, m.v); break;
+      case 'atkdeb': coups(m.v, m.n); debuff(m.s, m.n2); break;
+      case 'atkdef': coups(m.v, m.n); e.garde += m.g; break;
+      case 'soin': { const v = vivants(c).sort((a, b) => a.pv / a.pvMax - b.pv / b.pvMax)[0]; if (v) v.pv = Math.min(v.pvMax, v.pv + m.v); break; }
+      case 'inv': if (vivants(c).length < 4) { const n = creerEnnemi(run, c, m.id, true); c.ennemis.push(n); choisirIntent(run, c, n); n.intent = { t: 'def', v: 3 }; } break;
+    }
+    e.intent = null;
+  }
+
+  // ---------- quêtes ----------
+  function progresQuete(run, k, n) {
+    run.deck.forEach((x) => {
+      const d = def(x);
+      if (!d.q || d.q.k !== k || (x.niv || 0) >= niveauMax(d)) return;
+      x.q = (x.q || 0) + n;
+      const seuil = d.q.s[x.niv || 0];
+      if (x.q >= seuil) { x.niv = (x.niv || 0) + 1; run.journal.push({ k: 'quete', id: x.id, niv: x.niv }); if (run.combat) run.combat.ev.push({ k: 'quete', id: x.id, niv: x.niv }); }
+    });
+  }
+
+  // ---------- récompenses ----------
+  function poolCartes(run) {
+    return Object.values(CARTES).filter((d) => !d.depart && d.r !== 'M' && d.r !== 'G' && (d.cl === null || d.cl === run.classe));
+  }
+  function tirerCartes(run, n, source) {
+    const pool = poolCartes(run);
+    const out = [];
+    let essais = 0;
+    while (out.length < n && essais++ < 200) {
+      const x = alea(run);
+      let r;
+      if (source === 'boss') r = 'R';
+      else if (source === 'elite') r = x < 0.25 ? 'R' : x < 0.75 ? 'P' : 'C';
+      else r = x < 0.06 ? 'R' : x < 0.36 ? 'P' : 'C';
+      let cands = pool.filter((d) => d.r === r && !out.includes(d.id));
+      // la classe a une chance sur deux d'être proposée
+      const cls = cands.filter((d) => d.cl);
+      if (cls.length && alea(run) < 0.45) cands = cls;
+      if (!cands.length) continue;
+      out.push(choisir(run, cands).id);
+    }
+    return out;
+  }
+  function tirerTalismans(run, n) {
+    const libres = Object.keys(TALISMANS).filter((t) => !run.talismans.includes(t));
+    melanger(run, libres);
+    return libres.slice(0, n);
+  }
+  function gagnerTalisman(run, id) {
+    if (!id || run.talismans.includes(id)) return;
+    run.talismans.push(id);
+    const t = TALISMANS[id];
+    t.eff.forEach((e) => { if (e[0] === 'pvMax') { run.pvMax += e[1]; run.pv += e[1]; } });
+  }
+
+  function finCombat(run) {
+    const c = run.combat; if (!c || run.recompense) return;
+    const type = c.type;
+    const orBase = type === 'boss' ? entre(run, 70, 90) : type === 'elite' ? entre(run, 26, 36) : entre(run, 11, 18);
+    const or = Math.round(orBase * (1 + eff(run, 'orBonus') / 100));
+    const eclats = type === 'boss' ? 3 : type === 'elite' ? entre(run, 1, 2) : (alea(run) < 0.25 ? 1 : 0);
+    run.or += or; run.eclats += eclats;
+    let soin = eff(run, 'finCombatSoin') + lienVal(run, 'luciole');
+    if (eff(run, 'soinRage')) soin += (c.j.st.rage || 0) * eff(run, 'soinRage');
+    if (soin) soigner(run, null, soin);
+    const xp = c.xp;
+    run.xp += xp;
+    const niveauAvant = run.niveau;
+    while (run.niveau < SEUILS_XP.length && run.xp >= SEUILS_XP[run.niveau]) {
+      run.niveau++; run.pvMax += 4; run.pv = Math.min(run.pvMax, run.pv + 4); run.niveauxEnAttente++;
+    }
+    run.recompense = {
+      type, or, eclats, xp, soin, niveaux: run.niveau - niveauAvant,
+      cartes: tirerCartes(run, 3 + eff(run, 'choixCartes'), type), cartePrise: false,
+      talisman: type === 'elite' ? (tirerTalismans(run, 1)[0] || null) : null,
+      talismansChoix: type === 'boss' ? tirerTalismans(run, 3) : null, talismanPris: false
+    };
+    if (run.recompense.talisman) gagnerTalisman(run, run.recompense.talisman);
+    run.combat = null;
+    run.ecran = 'recompense';
+  }
+  function defaite(run) { run.ecran = 'fin'; run.gagne = false; run.fini = true; }
+
+  function prendreCarte(run, id) {
+    const r = run.recompense || run.tresor || run.evenement;
+    if (!r || r.cartePrise || !r.cartes || !r.cartes.includes(id)) return false;
+    run.deck.push(nouvelleInst(run, id)); r.cartePrise = true; return true;
+  }
+  function choisirTalismanBoss(run, id) {
+    const r = run.recompense; if (!r || !r.talismansChoix || r.talismanPris || !r.talismansChoix.includes(id)) return false;
+    gagnerTalisman(run, id); r.talismanPris = true; return true;
+  }
+  function quitterRecompense(run) {
+    const r = run.recompense; if (!r) return;
+    const boss = r.type === 'boss';
+    run.recompense = null;
+    if (run.niveauxEnAttente > 0) { preparerTalents(run); run.apresNiveau = boss ? 'boss' : 'carte'; run.ecran = 'niveau'; return; }
+    apresCombat(run, boss);
+  }
+  function apresCombat(run, boss) {
+    if (boss) {
+      if (run.acte >= ACTES.length - 1) { run.ecran = 'fin'; run.gagne = true; run.fini = true; return; }
+      if (run.brasier >= 3) run.pv = Math.min(run.pvMax, run.pv + Math.round((run.pvMax - run.pv) / 2));
+      else run.pv = run.pvMax;
+      commencerActe(run, run.acte + 1);
+    } else run.ecran = 'carte';
+  }
+  function preparerTalents(run) {
+    const cl = CLASSES[run.classe];
+    const pool = TALENTS.concat(cl.talents).filter((t) => !run.talents.includes(t.id) || t.id === 't-pv');
+    melanger(run, pool);
+    const classe = pool.filter((t) => cl.talents.includes(t));
+    const choix = [];
+    if (classe.length) choix.push(classe[0]);
+    pool.forEach((t) => { if (choix.length < 3 && !choix.includes(t)) choix.push(t); });
+    run.talentChoix = choix.map((t) => t.id);
+  }
+  function choisirTalent(run, id) {
+    if (!run.talentChoix || !run.talentChoix.includes(id)) return false;
+    run.talents.push(id);
+    const t = talentDef(id);
+    t.eff.forEach((e) => { if (e[0] === 'pvMax') { run.pvMax += e[1]; run.pv += e[1]; } });
+    run.niveauxEnAttente--;
+    run.talentChoix = null;
+    if (run.niveauxEnAttente > 0) { preparerTalents(run); return true; }
+    apresCombat(run, run.apresNiveau === 'boss');
+    run.apresNiveau = null;
     return true;
   }
 
-  function ameliorerCarte(etat, uidCarte) {
-    const c = etat.deck.find((x) => x.uid === uidCarte);
-    if (!c || c.plus) return false;
-    if (!CARTES[c.id] || !CARTES[c.id].plus) return false;
-    c.plus = true;
+  // ---------- trésor, brasero, marchand, événements ----------
+  function ouvrirTresor(run) {
+    const t = run.tresor; if (!t || t.ouvert) return;
+    t.ouvert = true; run.or += t.or; run.eclats += t.eclats;
+  }
+  function quitterEcran(run) { run.tresor = null; run.marchand = null; run.evenement = null; run.brasero = null; run.selection = null; run.ecran = 'carte'; }
+  function soinBrasero(run) { return Math.round(run.pvMax * ((run.brasier >= 8 ? 20 : 30) + eff(run, 'soinRepos')) / 100); }
+  function braseroSoigner(run) { if (!run.brasero || run.brasero.fait) return false; run.pv = Math.min(run.pvMax, run.pv + soinBrasero(run)); run.brasero.fait = 'soin'; return true; }
+  function braseroMediter(run) {
+    if (!run.brasero || run.brasero.fait) return false;
+    run.brasero.fait = 'mediter'; gagnerXp(run, 20); return true;
+  }
+  function gagnerXp(run, n) {
+    run.xp += n;
+    while (run.niveau < SEUILS_XP.length && run.xp >= SEUILS_XP[run.niveau]) { run.niveau++; run.pvMax += 4; run.pv = Math.min(run.pvMax, run.pv + 4); run.niveauxEnAttente++; }
+  }
+  function affutable(inst) { const d = def(inst); return (inst.niv || 0) < niveauMax(d) && d.r !== 'M'; }
+  function demanderSelection(run, mode, retour) { run.selection = { mode, retour }; run.ecranAvant = run.ecran; run.ecran = 'selection'; }
+  function annulerSelection(run) {
+    const s = run.selection; if (!s) return;
+    if (s.retour === 'marchand' && run.marchand && run.marchand.services[s.mode]) { run.or += prixService(run, s.mode); run.marchand.services[s.mode] = false; }
+    run.ecran = run.ecranAvant || 'carte'; run.selection = null;
+  }
+  function appliquerSelection(run, u) {
+    const s = run.selection; if (!s) return false;
+    const i = run.deck.findIndex((x) => x.u === u); if (i < 0) return false;
+    const inst = run.deck[i];
+    if (s.mode === 'affuter') { if (!affutable(inst)) return false; inst.niv = (inst.niv || 0) + 1; }
+    else if (s.mode === 'retirer') run.deck.splice(i, 1);
+    else if (s.mode === 'transformer') { const pool = poolCartes(run).filter((d) => d.id !== inst.id && d.r !== 'R'); run.deck[i] = nouvelleInst(run, choisir(run, pool).id); }
+    else if (s.mode === 'dupliquer') run.deck.push(Object.assign(nouvelleInst(run, inst.id, inst.niv), { q: inst.q }));
+    run.journal.push({ k: s.mode, id: inst.id });
+    run.dernierSelection = { mode: s.mode, id: inst.id, nouveau: s.mode === 'transformer' ? run.deck[i].id : null };
+    run.ecran = run.ecranAvant || 'carte'; run.selection = null;
+    if (s.retour === 'brasero' && run.brasero) run.brasero.fait = 'affuter';
     return true;
   }
 
-  function soigner(etat, n) {
-    const avant = etat.pv;
-    etat.pv = Math.min(etat.pvMax, etat.pv + n);
-    return etat.pv - avant;
+  function prixMult(run) { return run.brasier >= 6 ? 1.2 : 1; }
+  function genererMarchand(run) {
+    const pool = poolCartes(run);
+    const pris = [];
+    const tire = (r, cl) => { const c = pool.filter((d) => d.r === r && !pris.includes(d.id) && (cl == null || (cl ? d.cl : !d.cl))); if (!c.length) return null; const d = choisir(run, c); pris.push(d.id); return d.id; };
+    const ids = [tire('C', true), tire('C', false), tire('P', true), tire('P', false), tire('R', null), tire('C', false)].filter(Boolean);
+    const prixR = { C: 45, P: 70, R: 120 };
+    const m = run.marchand0 = null;
+    return {
+      cartes: ids.map((id) => ({ id, prix: Math.round((prixR[CARTES[id].r] + entre(run, -6, 8)) * prixMult(run)), vendu: false })),
+      talismans: tirerTalismans(run, 3).map((id) => ({ id, prix: TALISMANS[id].prix, vendu: false })),
+      services: { soin: false, retirer: false, transformer: false, dupliquer: false, pvmax: false, rang: false, relance: false }
+    };
+  }
+  function prixService(run, k) {
+    const base = { soin: 35, retirer: 60, transformer: 40, dupliquer: 70, pvmax: 45, rang: run.rang === 1 ? 110 : 200, relance: 1 }[k];
+    return k === 'relance' ? base : Math.round(base * prixMult(run));
+  }
+  function acheterCarte(run, i) {
+    const m = run.marchand; const o = m && m.cartes[i]; if (!o || o.vendu || run.or < o.prix) return false;
+    run.or -= o.prix; o.vendu = true; run.deck.push(nouvelleInst(run, o.id)); return true;
+  }
+  function acheterTalisman(run, i) {
+    const m = run.marchand; const o = m && m.talismans[i]; if (!o || o.vendu || run.eclats < o.prix) return false;
+    run.eclats -= o.prix; o.vendu = true; gagnerTalisman(run, o.id); return true;
+  }
+  function acheterService(run, k) {
+    const m = run.marchand; if (!m || m.services[k]) return false;
+    const p = prixService(run, k);
+    if (k === 'relance') { if (run.eclats < p) return false; run.eclats -= p; const nv = genererMarchand(run); m.cartes = nv.cartes; m.services.relance = true; return true; }
+    if (k === 'rang' && run.rang >= 3) return false;
+    if (run.or < p) return false;
+    run.or -= p; m.services[k] = true;
+    if (k === 'soin') run.pv = Math.min(run.pvMax, run.pv + Math.round(run.pvMax * 0.3));
+    else if (k === 'pvmax') { run.pvMax += 4; run.pv += 4; }
+    else if (k === 'rang') run.rang++;
+    else demanderSelection(run, k, 'marchand');
+    return true;
   }
 
-  function marquerNoeudFait(etat) {
-    const carte = etat.carte;
-    if (!carte.actuel) return;
-    if (!carte.faits.includes(carte.actuel)) carte.faits.push(carte.actuel);
-    const n = trouverNoeud(etat, carte.actuel);
-    carte.ouverts = (n && n.sorties) ? n.sorties.slice() : [];
-    carte.actuel = null;
-    etat.etage = carte.faits.length;
-    if (!carte.ouverts.length) {
-      etat.ecran = 'victoire';
-    } else {
-      etat.ecran = 'carte';
-    }
+  function evenementDef(run) { return run.evenement && EVENEMENTS.find((e) => e.id === run.evenement.id); }
+  function choixPossible(run, ch) { return !ch.cond || (ch.cond[0] === 'or' ? run.or >= ch.cond[1] : true); }
+  function choisirEvenement(run, k) {
+    const ev = evenementDef(run); if (!ev || run.evenement.fait != null) return false;
+    const ch = ev.choix[k]; if (!ch || !choixPossible(run, ch)) return false;
+    run.evenement.fait = k; run.evenement.resultat = [];
+    const res = run.evenement.resultat;
+    ch.eff.forEach((e) => {
+      const [t, n] = e;
+      if (t === 'pv') { if (n < 0) run.pv = Math.max(1, run.pv + n); else run.pv = Math.min(run.pvMax, run.pv + n); res.push((n > 0 ? '+' : '') + n + ' PV'); }
+      else if (t === 'pvMax') { run.pvMax += n; run.pv += n; res.push('+' + n + ' PV max'); }
+      else if (t === 'or') { run.or += n; res.push((n > 0 ? '+' : '') + n + ' or'); }
+      else if (t === 'eclats') { run.eclats += n; res.push('+' + n + ' éclat' + (n > 1 ? 's' : '')); }
+      else if (t === 'xp') { gagnerXp(run, n); res.push('+' + n + ' XP'); }
+      else if (t === 'ajoute') { run.deck.push(nouvelleInst(run, n)); res.push(CARTES[n].nom + ' rejoint ton paquet'); }
+      else if (t === 'talisman') { const id = tirerTalismans(run, 1)[0]; if (id) { gagnerTalisman(run, id); res.push('Talisman : ' + TALISMANS[id].nom); } }
+      else if (t === 'carteRare') { run.evenement.cartes = tirerCartes(run, 3, 'boss'); run.evenement.cartePrise = false; }
+      else if (t === 'affuteAlea') { const a = run.deck.filter(affutable); if (a.length) { const x = choisir(run, a); x.niv = (x.niv || 0) + 1; res.push(CARTES[x.id].nom + ' est affûtée'); } }
+      else if (t === 'affute') demanderSelection(run, 'affuter', 'evenement');
+      else if (t === 'retire') demanderSelection(run, 'retirer', 'evenement');
+      else if (t === 'elite') { run.flags.eliteSuivante = true; res.push('Le prochain combat sera une élite'); }
+      else if (t === 'pari') { run.or -= 30; if (alea(run) < 0.5) { run.or += 80; res.push('Gagné : +50 or net'); } else res.push('Perdu : −30 or'); }
+    });
+    return true;
   }
 
-  function entrerNoeud(etat, id, rng, meta) {
-    const n = trouverNoeud(etat, id);
-    if (!n) return { ok: false };
-    if (!etat.carte.ouverts.includes(id)) return { ok: false };
-    etat.carte.actuel = id;
-    etat._acteEnCours = n.acte;
-    if (n.type === 'combat' || n.type === 'elite' || n.type === 'boss') {
-      demarrerCombat(etat, n.vague, rng, meta);
-      return { ok: true, ecran: 'combat' };
-    }
-    if (n.type === 'repos') { etat.ecran = 'repos'; return { ok: true, ecran: 'repos' }; }
-    if (n.type === 'boutique') {
-      etat.ecran = 'boutique';
-      etat.choix = tirerOffre(etat, meta, 3, rng);
-      etat.choixReliques = tirerReliques(etat, 1, rng);
-      return { ok: true, ecran: 'boutique' };
-    }
-    if (n.type === 'evenement') {
-      etat.ecran = 'evenement';
-      etat.evenement = EVENEMENTS[n.vague] || EVENEMENTS.chien_errant;
-      return { ok: true, ecran: 'evenement' };
-    }
-    return { ok: false };
+  // ---------- IA (simulation et mentor) ----------
+  function cloner(run, c) {
+    const r2 = Object.assign({}, run, { stats: Object.assign({}, run.stats), journal: [], deck: run.deck });
+    const c2 = JSON.parse(JSON.stringify(c)); c2.sim = true;
+    return [r2, c2];
   }
-
-
-  function soinRepos(etat) {
-    const base = (etat.ascension || 0) >= 5 ? 18 : 22;
-    return Math.min(base, etat.pvMax - etat.pv);
-  }
-  function prixCarte(etat) { return 40 + ((etat.ascension || 0) >= 8 ? 15 : 0) + ((etat.flags || {}).huileVolee || (etat.flags || {}).shopsChers ? 15 : 0); }
-  function prixRelique(etat) { return 70 + ((etat.ascension || 0) >= 8 ? 15 : 0) + ((etat.flags || {}).huileVolee ? 15 : 0); }
-  function prixRetrait(etat) { return 30 + ((etat.flags || {}).huileVolee ? 10 : 0); }
-  function prixAffut(etat) { return 50 + ((etat.flags || {}).huileVolee ? 10 : 0); }
-
-  function appliquerEvenement(etat, evId, choixId, rng, meta) {
-    const ev = EVENEMENTS[evId] || etat.evenement;
-    if (!ev) return { ok: false };
-    const ch = (ev.choix || []).find((c) => c.id === choixId);
-    if (!ch) return { ok: false };
-    etat.flags = etat.flags || {};
-    const ef = ch.effet || {};
-    if (ef.pv) etat.pv = Math.max(1, etat.pv + ef.pv);
-    if (ef.soin) soigner(etat, ef.soin);
-    if (ef.or) etat.or += ef.or;
-    if (ef.pvMax) { etat.pvMax += ef.pvMax; etat.pv += ef.pvMax; }
-    if (ef.flag) etat.flags[ef.flag] = true;
-    if (ef.relique) {
-      const off = tirerReliques(etat, 1, rng);
-      if (off[0]) donnerRelique(etat, off[0].id);
-    }
-    etat.dernierChoix = { ev: ev.id, choix: ch.id, suite: ch.suite };
-    return { ok: true, suite: ch.suite };
-  }
-
-  function choisirEvenementAuto(etat, ev) {
-    const ratio = etat.pv / etat.pvMax;
-    const evn = ev || etat.evenement;
-    if (!evn) return null;
-    // éviter de payer des pv si on est bas ; sinon prendre l'option qui pose un flag utile
-    const options = evn.choix || [];
-    const sure = options.find((c) => !c.effet || !c.effet.pv || (c.effet.pv + etat.pv > etat.pvMax * 0.4));
-    if (ratio < 0.45) {
-      const doux = options.find((c) => !c.effet || !c.effet.pv);
-      return (doux || options[options.length - 1]).id;
-    }
-    const rel = options.find((c) => c.effet && c.effet.relique);
-    if (rel) return rel.id;
-    const garde = options.find((c) => c.effet && c.effet.flag === 'gardeDepart');
-    if (garde) return garde.id;
-    return (sure || options[0]).id;
-  }
-
-  /* ---------- IA du joueur automatique ---------- */
-  function degatsEntrants(etat) {
-    return etat.combat.ennemis.filter((e) => e.pv > 0).reduce((s, e) => {
-      const int = e.intention || {};
-      if (!int.degats) return s;
-      const coups = int.coups || 1;
-      let d = (int.degats + (e.force || 0));
-      if (e.frisson > 0) d = Math.floor(d * 0.75);
-      return s + d * coups;
-    }, 0);
-  }
-
-  function scoreCarte(etat, carte) {
-    const c = etat.combat;
-    const d = defCarte(carte);
-    if (c.energie < d.cout) return -Infinity;
-    const incoming = degatsEntrants(etat);
-    const besoinGarde = Math.max(0, incoming - c.bloc);
-    let s = 0;
-    if (d.degats || d.briser) {
-      const calc = degatsCarte(d, c, etat);
-      const cibles = d.tous ? c.ennemis.filter((e) => e.pv > 0) : [c.ennemis.filter((e) => e.pv > 0).sort((a, b) => a.pv - b.pv)[0]].filter(Boolean);
-      cibles.forEach((e) => {
-        const réel = Math.min(e.pv + e.bloc, calc.n);
-        s += réel * 1.1;
-        if (calc.n >= e.pv + e.bloc) s += 8; // kill
-      });
-    }
-    if (d.garde) {
-      const utile = Math.min(d.garde, Math.max(0, besoinGarde));
-      s += utile * 1.5 + (besoinGarde > 0 ? 1 : d.garde * 0.25);
-      if (besoinGarde >= 10) s += 6;
-    }
-    if (d.chaleur) s += d.chaleur * (2.2);
-    if (d.fumee) s += d.fumee * (2.2);
-    if (d.huile) s += d.huile * 0.7;
-    if (d.resine) s += 4.5;
-    if (d.pioche) s += d.pioche * 2.2;
-    if (d.disparait && c.fumee >= 2) s += 5;
-    if (d.eclat && c.chaleur >= 3) s += 6;
-    if (d.etouffe && c.fumee >= 2) s += 6;
-    if (d.gel) s += d.gel * 2.8 + ((c.gel || 0) < 4 ? 3 : 0);
-    if (d.briser) { const g = c.gel || 0; if (g >= 3) s += 10; if (g >= 5) s += 8; if (g < 2) s -= 10; }
-    if (d.cassure && (c.gel || 0) >= 3) s += 6;
-    // Préférer dépenser l'énergie, légèrement
-    s += (3 - d.cout) * 0.1;
+  const POIDS_ST = { chaleur: 1.6, fleches: 2.2, seve: 0.7, rage: 1.2, ames: 2.2, brume: 3, esquive: 6, epines: 1.6, robustesse: 3, force: 4, rouages: 1 };
+  function score(run, c, entrants) {
+    if (c.fin === 'victoire') return 1e5 + run.pv * 10;
+    if (c.fin === 'defaite') return -1e5;
+    let s = run.pv * 3;
+    vivants(c).forEach((e) => {
+      s -= e.pv + e.garde * 0.4;
+      s += (e.st.brulure || 0) * 0.9 + (e.st.poison || 0) * 0.9 + (e.st.gel || 0) * (run.classe === 'silex' ? 2.2 : 1.2) + (e.st.faible || 0) * 1.8 + (e.st.expose || 0) * 2;
+    });
+    s += 14 * c.ennemis.filter((e) => e.pv <= 0).length;
+    const inc = degatsEntrants(run, c);
+    s += Math.min(c.j.garde, inc) * 2.4 + Math.max(0, c.j.garde - inc) * 0.15;
+    Object.entries(c.j.st).forEach(([k, v]) => { if (POIDS_ST[k]) s += v * POIDS_ST[k]; });
+    s -= (c.j.st.faible || 0) * 2 + (c.j.st.expose || 0) * 2;
+    s += c.main.length * 0.6 + c.j.mana * 0.2;
     return s;
   }
-
-  function choisirCible(etat, d) {
-    const vivants = etat.combat.ennemis.filter((e) => e.pv > 0);
-    if (!vivants.length) return null;
-    if (d.tous) return null;
-    // Viser celui qu'on peut tuer, sinon le plus faible
-    const calc = degatsCarte(d, etat.combat, etat);
-    const tuable = vivants.filter((e) => e.pv + e.bloc <= calc.n).sort((a, b) => b.pv - a.pv);
-    if (tuable.length) return tuable[0].uid;
-    return vivants.slice().sort((a, b) => (a.pv + a.bloc) - (b.pv + b.bloc))[0].uid;
-  }
-
-  function jouerTourAuto(etat, rng) {
-    const r = rng || Math.random;
-    let gardeFou = 0;
-    while (gardeFou++ < 20) {
-      const c = etat.combat;
-      if (!c || etat.pv <= 0) break;
-      if (c.ennemis.every((e) => e.pv <= 0)) break;
-      const jouables = c.main.filter((carte) => {
-        const d = defCarte(carte);
-        if (c.energie < d.cout) return false;
-        return scoreCarte(etat, carte) > 0.2;
+  function meilleurCoup(run, c) {
+    const base = score(run, c);
+    let best = null;
+    c.main.forEach((inst, i) => {
+      if (!peutJouer(run, c, i)) return;
+      const cibles = besoinCible(inst) ? vivants(c).map((e) => e.u) : [null];
+      cibles.forEach((u) => {
+        const [r2, c2] = cloner(run, c);
+        const res = jouerCarte(r2, c2, i, u);
+        if (!res.ok) return;
+        let s = score(r2, c2) - base;
+        if (def(inst).id === 'suie') s += 0.2;
+        if (!best || s > best.s) best = { i, u, s };
       });
-      if (!jouables.length) break;
-      jouables.sort((a, b) => scoreCarte(etat, b) - scoreCarte(etat, a));
-      const carte = jouables[0];
-      const d = defCarte(carte);
-      const cible = ((d.degats || d.briser) && !d.tous) ? choisirCible(etat, d) : null;
-      if ((d.degats || d.briser) && !d.tous && !cible) break;
-      const ev = jouerCarte(etat, carte.uid, cible, r);
-      if (!ev.ok) break;
-      if (ev.victoire || ev.joueurMort) return ev;
+    });
+    if (!best || best.s <= 0.3) return null;
+    return best;
+  }
+  function conseil(run) { const c = run.combat; if (!c || c.fin) return null; return meilleurCoup(run, c); }
+
+  function iaCarte(run) {
+    const choix = choixCarte(run).map((id) => run.carte.noeuds[id]);
+    const ratio = run.pv / run.pvMax;
+    let best = null;
+    choix.forEach((n) => {
+      let s = { combat: 3, elite: ratio > 0.7 ? 4.5 : ratio > 0.5 ? 1 : -3, brasero: ratio < 0.5 ? 7 : ratio < 0.75 ? 3 : 0.5, marchand: run.or >= 100 ? 5 : 0.5, tresor: 5, evenement: 2.6, boss: 10 }[n.type] || 0;
+      s += alea(run) * 1.5;
+      if (!best || s > best.s) best = { id: n.id, s };
+    });
+    return best && best.id;
+  }
+  function valeurCarte(run, id) {
+    const d = CARTES[id];
+    let s = { C: 1, P: 2, R: 3.2 }[d.r] || 0;
+    if (d.cl === run.classe) s += 1.4;
+    if (d.tr) s += 0.45 * tribuCompte(run, d.tr);
+    if (d.q) s += 0.6;
+    const doublons = run.deck.filter((x) => x.id === id).length; s -= doublons * 0.8;
+    return s;
+  }
+  function iaRecompense(run, cartes) {
+    let best = null; cartes.forEach((id) => { const s = valeurCarte(run, id); if (!best || s > best.s) best = { id, s }; });
+    if (!best) return null;
+    if (run.deck.length >= 22 && best.s < 2.6) return null;
+    return best.id;
+  }
+  function iaSelection(run) {
+    const s = run.selection;
+    let cands = run.deck.slice();
+    if (s.mode === 'affuter') { cands = cands.filter(affutable); cands.sort((a, b) => valeurCarte(run, b.id) - valeurCarte(run, a.id)); }
+    else if (s.mode === 'retirer' || s.mode === 'transformer') { const ordre = ['suie', 'frappe', 'parade']; cands.sort((a, b) => (ordre.indexOf(b.id) + 1 || 0) - (ordre.indexOf(a.id) + 1 || 0)); }
+    else cands.sort((a, b) => valeurCarte(run, b.id) - valeurCarte(run, a.id));
+    if (!cands.length) { annulerSelection(run); return; }
+    appliquerSelection(run, cands[0].u);
+  }
+  function iaEcran(run) {
+    switch (run.ecran) {
+      case 'carte': { const id = iaCarte(run); if (!id || !entrerNoeud(run, id)) return false; return true; }
+      case 'combat': {
+        const c = run.combat; let garde = 0;
+        while (!c.fin && garde++ < 30) { const m = meilleurCoup(run, c); if (!m) break; jouerCarte(run, c, m.i, m.u); }
+        if (run.combat === c && !c.fin) finTour(run, c);
+        if (run.combat === c && c.tour > 60) { run.pv = 0; defaite(run); }
+        return true;
+      }
+      case 'recompense': {
+        const r = run.recompense;
+        const id = iaRecompense(run, r.cartes); if (id) prendreCarte(run, id);
+        if (r.talismansChoix && r.talismansChoix.length) choisirTalismanBoss(run, r.talismansChoix[0]);
+        quitterRecompense(run); return true;
+      }
+      case 'niveau': { const ch = run.talentChoix; choisirTalent(run, ch[ent(run, ch.length)]); return true; }
+      case 'tresor': { ouvrirTresor(run); const id = iaRecompense(run, run.tresor.cartes); if (id) prendreCarte(run, id); quitterEcran(run); return true; }
+      case 'brasero': {
+        if (run.pv / run.pvMax < 0.55) braseroSoigner(run);
+        else if (run.deck.some(affutable)) { demanderSelection(run, 'affuter', 'brasero'); iaSelection(run); }
+        else braseroSoigner(run);
+        quitterEcran(run); return true;
+      }
+      case 'marchand': {
+        const m = run.marchand;
+        if (run.rang < 3 && run.or >= prixService(run, 'rang') + 20) acheterService(run, 'rang');
+        m.talismans.forEach((t, i) => { if (run.eclats >= t.prix) acheterTalisman(run, i); });
+        if (run.deck.some((x) => x.id === 'suie' || x.id === 'frappe') && run.or >= prixService(run, 'retirer')) { acheterService(run, 'retirer'); if (run.ecran === 'selection') iaSelection(run); }
+        if (run.pv / run.pvMax < 0.5 && run.or >= prixService(run, 'soin')) acheterService(run, 'soin');
+        const triees = m.cartes.map((o, i) => ({ o, i, s: valeurCarte(run, o.id) })).sort((a, b) => b.s - a.s);
+        triees.forEach(({ o, i, s }) => { if (s >= 2.4 && run.or >= o.prix) acheterCarte(run, i); });
+        quitterEcran(run); return true;
+      }
+      case 'evenement': {
+        const ev = evenementDef(run);
+        if (run.evenement.fait == null) {
+          let k = ev.choix.findIndex((ch) => choixPossible(run, ch) && !(run.pv < run.pvMax * 0.5 && ch.eff.some((e) => e[0] === 'pv' && e[1] < 0)) && !ch.eff.some((e) => e[0] === 'elite' && run.pv < run.pvMax * 0.7));
+          if (k < 0) k = ev.choix.length - 1;
+          choisirEvenement(run, k);
+          if (run.ecran === 'selection') iaSelection(run);
+          if (run.evenement && run.evenement.cartes && !run.evenement.cartePrise) { const id = iaRecompense(run, run.evenement.cartes); if (id) prendreCarte(run, id); }
+        }
+        quitterEcran(run); return true;
+      }
+      case 'selection': iaSelection(run); return true;
+      default: return false;
     }
-    return { ok: true, finTour: true };
   }
-
-  function choisirRecompenseAuto(etat, offre) {
-    // Préférer les cartes de synergie déjà présentes, puis les attaques efficaces
-    const idsDeck = etat.deck.map((c) => c.id);
-    const aChaleur = idsDeck.some((id) => ['soufflet', 'encens', 'souffle', 'braisevive', 'eclat'].includes(id));
-    const aFumee = idsDeck.some((id) => ['fumerolle', 'suie', 'emprise', 'etouffement', 'voilecourt', 'courant'].includes(id));
-    function sc(c) {
-      const d = defCarte(c);
-      let s = 1;
-      if (d.eclat && aChaleur) s += 8;
-      if (d.parChaleur && aChaleur) s += 7;
-      if (d.etouffe && aFumee) s += 8;
-      if (d.parFumee2 && aFumee) s += 7;
-      if (d.chaleur || d.fumee) s += 3;
-      if (d.pioche) s += 3;
-      if (d.resine) s += 4;
-      if (d.tous) s += 2;
-      if (d.degats >= 10) s += 2;
-      // Pénaliser les doublons excessifs
-      const nb = idsDeck.filter((id) => id === d.id).length;
-      s -= nb * 1.5;
-      return s;
-    }
-    return offre.slice().sort((a, b) => sc(b) - sc(a))[0];
-  }
-
-  function choisirReliqueAuto(etat, offre) {
-    const ordre = ['bol', 'coeur', 'cendrex', 'anneau', 'meche', 'pierre', 'souffletcuivre', 'linceul'];
-    for (const id of ordre) {
-      const t = offre.find((r) => (r.id || r) === id);
-      if (t) return t;
-    }
-    return offre[0];
-  }
-
-  function choisirReposAuto(etat) {
-    const ratio = etat.pv / etat.pvMax;
-    const ameliorable = etat.deck.find((c) => !c.plus && CARTES[c.id] && CARTES[c.id].plus);
-    if (ratio <= 0.45) return 'soin';
-    if (ameliorable) return { acte: 'ameliorer', uid: choisirCarteAAmeliorer(etat) };
-    if (etat.deck.length > 12) {
-      const uidr = choisirCarteARetirer(etat);
-      if (uidr) return { acte: 'retirer', uid: uidr };
-    }
-    if (ratio < 0.8) return 'soin';
-    if (ameliorable) return { acte: 'ameliorer', uid: choisirCarteAAmeliorer(etat) };
-    return 'partir';
-  }
-
-  function choisirCarteAAmeliorer(etat) {
-    const prio = ['eclat', 'braisevive', 'etouffement', 'emprise', 'trait', 'souffle', 'mur', 'voile', 'tisons', 'encens', 'suie', 'etincelle', 'haleine', 'cendre', 'ecran'];
-    for (const id of prio) {
-      const c = etat.deck.find((x) => x.id === id && !x.plus);
-      if (c) return c.uid;
-    }
-    const c = etat.deck.find((x) => !x.plus && CARTES[x.id] && CARTES[x.id].plus);
-    return c ? c.uid : null;
-  }
-
-  function choisirCarteARetirer(etat) {
-    if (etat.deck.length <= 5) return null;
-    const prio = ['etincelle', 'haleine', 'cendre', 'ecran'];
-    for (const id of prio) {
-      const c = etat.deck.find((x) => x.id === id);
-      if (c) return c.uid;
-    }
-    return etat.deck[0].uid;
-  }
-
-  function choisirNoeudAuto(etat) {
-    const ids = etat.carte.ouverts || [];
-    const noeuds = ids.map((id) => trouverNoeud(etat, id)).filter(Boolean);
-    if (!noeuds.length) return null;
-    const ratio = etat.pv / etat.pvMax;
-    const score = (n) => {
-      if (n.type === 'repos' && ratio < 0.7) return 10;
-      if (n.type === 'boss') return 6;
-      if (n.type === 'elite' && ratio > 0.55) return 8;
-      if (n.type === 'elite') return 3;
-      if (n.type === 'boutique' && etat.or >= 40) return 7;
-      if (n.type === 'boutique') return 4;
-      if (n.type === 'combat') return 5;
-      if (n.type === 'evenement') return 6;
-      return 1;
-    };
-    return noeuds.slice().sort((a, b) => score(b) - score(a))[0].id;
-  }
-
-  /* Une course complète, sans interface. Retourne un rapport. */
-  function jouerCourse(persoId, meta, rng, options) {
-    const r = rng || Math.random;
-    const opt = options || {};
-    const maxTours = opt.maxTours || 80;
-    const m = Object.assign({ deblocages: [], tutoVu: true, runs: 0, victoires: 0, defaites: 0, meilleurEtage: 0 }, meta || {});
-    const etat = nouvellePartie(persoId, m, r);
-    const rapport = { perso: persoId, gagne: false, mort: false, etage: 0, tours: 0, noeuds: [], deckFinal: [], reliques: [], pv: etat.pv, raison: '' };
+  function jouerCourse(classe, opts) {
+    const run = nouvelleCourse(classe, opts);
     let garde = 0;
-    while (garde++ < 60) {
-      if (etat.ecran === 'victoire') { rapport.gagne = true; break; }
-      if (etat.ecran === 'defaite') { rapport.mort = true; break; }
-      if (etat.ecran === 'carte') {
-        const id = choisirNoeudAuto(etat);
-        if (!id) { rapport.raison = 'aucun-noeud'; break; }
-        const n = trouverNoeud(etat, id);
-        rapport.noeuds.push(n ? n.nom : id);
-        entrerNoeud(etat, id, r, m);
-        continue;
-      }
-      if (etat.ecran === 'combat') {
-        let t = 0;
-        while (etat.ecran === 'combat' && t++ < maxTours) {
-          rapport.tours++;
-          const ev = jouerTourAuto(etat, r);
-          if (etat.combat && etat.combat.ennemis.every((e) => e.pv <= 0)) {
-            finCombat(etat, true, r, m);
-            break;
-          }
-          if (etat.pv <= 0) {
-            finCombat(etat, false, r, m);
-            break;
-          }
-          if (ev && ev.finTour) {
-            const ft = finTour(etat, r);
-            if (ft.joueurMort) { finCombat(etat, false, r, m); break; }
-            if (ft.victoire) { finCombat(etat, true, r, m); break; }
-          }
-        }
-        if (etat.ecran === 'combat') { rapport.raison = 'combat-blocage'; finCombat(etat, false, r, m); }
-        continue;
-      }
-      if (etat.ecran === 'relique') {
-        const offre = etat.choixReliques || [];
-        if (offre.length) {
-          const ch = choisirReliqueAuto(etat, offre);
-          if (ch) donnerRelique(etat, ch.id || ch);
-        }
-        etat.choixReliques = null;
-        if (etat.choix && etat.choix.length) etat.ecran = 'recompense';
-        else { marquerNoeudFait(etat); }
-        continue;
-      }
-      if (etat.ecran === 'recompense') {
-        const offre = etat.choix || [];
-        if (offre.length) {
-          const ch = choisirRecompenseAuto(etat, offre);
-          if (ch) ajouterCarte(etat, ch.id, r, false);
-        }
-        etat.choix = null;
-        marquerNoeudFait(etat);
-        continue;
-      }
-      if (etat.ecran === 'familier') {
-        if (etat.offreFamilier) accueillirFamilier(etat, etat.offreFamilier.ligne);
-        etat.offreFamilier = null;
-        const suiv = etat._apresFamilier || 'recompense';
-        etat._apresFamilier = null;
-        etat.ecran = suiv;
-        continue;
-      }
-      if (etat.ecran === 'evenement') {
-        const idc = choisirEvenementAuto(etat, etat.evenement);
-        if (idc) appliquerEvenement(etat, etat.evenement.id, idc, r, m);
-        etat.evenement = null;
-        marquerNoeudFait(etat);
-        continue;
-      }
-      if (etat.ecran === 'repos') {
-        const choixR = choisirReposAuto(etat);
-        if (choixR === 'soin') soigner(etat, soinRepos(etat) || 24);
-        else if (choixR && choixR.acte === 'ameliorer') ameliorerCarte(etat, choixR.uid);
-        else if (choixR && choixR.acte === 'retirer') retirerCarte(etat, choixR.uid);
-        marquerNoeudFait(etat);
-        continue;
-      }
-      if (etat.ecran === 'boutique') {
-        // Acheter la meilleure carte si or >= 40, parfois une relique (70)
-        const pRel = prixRelique(etat), pCar = prixCarte(etat);
-        if (etat.choixReliques && etat.choixReliques.length && etat.or >= pRel) {
-          donnerRelique(etat, etat.choixReliques[0].id);
-          etat.or -= pRel;
-        }
-        if (etat.choix && etat.choix.length && etat.or >= pCar) {
-          const ch = choisirRecompenseAuto(etat, etat.choix);
-          if (ch) { ajouterCarte(etat, ch.id, r, false); etat.or -= pCar; }
-        }
-        etat.choix = null;
-        etat.choixReliques = null;
-        marquerNoeudFait(etat);
-        continue;
-      }
-      rapport.raison = 'ecran-inconnu:' + etat.ecran;
-      break;
-    }
-    rapport.etage = etat.etage || (etat.carte && etat.carte.faits.length) || 0;
-    rapport.pv = etat.pv;
-    rapport.deckFinal = etat.deck.map((c) => c.id + (c.plus ? '+' : ''));
-    rapport.reliques = (etat.reliques || []).map((r) => r.id || r);
-    rapport.or = etat.or;
-    rapport.ecran = etat.ecran;
-    rapport.flags = Object.keys(etat.flags || {});
-    rapport.ascension = etat.ascension || 0;
-    rapport.familiers = (etat.familiers || []).map((f) => f.ligne + ':' + (f.stade || 0));
-    return rapport;
+    while (!run.fini && garde++ < 5000) { if (!iaEcran(run)) break; }
+    return { gagne: run.gagne, mort: run.fini && !run.gagne, acte: run.acte + 1, etage: run.etageTotal, niveau: run.niveau, tours: run.stats.tours, pv: run.pv, deckFinal: run.deck.map((x) => x.id), talismans: run.talismans.slice(), talents: run.talents.slice(), bloque: !run.fini, renom: renomGagne(run) };
   }
 
-  const api = {
-    CARTES, RELIQUES, PERSOS, ENNEMIS, DEBLOCABLES, INTENTS,
-    creerRng, choix, melanger, uid, instancier, defCarte, aRelique,
-    nouvellePartie, genererCarte, trouverNoeud, entrerNoeud, marquerNoeudFait,
-    demarrerCombat, debutTourJoueur, piocher, degatsCarte, apercu,
-    jouerCarte, finTour, agirEnnemi, finCombat,
-    tirerOffre, tirerReliques, donnerRelique, ajouterCarte, retirerCarte, ameliorerCarte, soigner,
-    jouerCourse, jouerTourAuto, choisirRecompenseAuto, choisirReliqueAuto, choisirReposAuto, choisirNoeudAuto,
-    EVENEMENTS, appliquerEvenement, choisirEvenementAuto, soinRepos, prixCarte, prixRelique, prixRetrait, prixAffut,
-    ELEMENTS, AVANTAGE, LIGNES, EQUIPE_MAX, multiplicateur, defLigne, defStade, artFamilier,
-    proposerCapture, accueillirFamilier, evoluerFamiliers, agirFamiliersTour, agirFamiliersDebutCombat, suggererCoup,
-    degatsEntrants, scoreCarte, poolRecompense
+  // ---------- méta (renom) ----------
+  function renomGagne(run) {
+    return run.etageTotal * 4 + run.stats.tues * 2 + run.stats.elites * 10 + run.stats.boss * 30 + (run.gagne ? 100 + run.brasier * 15 : 0);
+  }
+  function niveauRenom(renom) { let n = 1; RENOM_NIVEAUX.forEach((s, i) => { if (renom >= s) n = i + 1; }); return n; }
+  function classesDebloquees(meta) {
+    if (meta.toutDebloque) return Object.keys(CLASSES);
+    const n = niveauRenom(meta.renom || 0);
+    return Object.keys(CLASSES).filter((k) => CLASSES[k].renom <= n);
+  }
+  function heritagesDebloques(meta, classe) {
+    if (meta.toutDebloque) return [0, 1, 2];
+    const p = (meta.parClasse || {})[classe] || {};
+    const out = [0];
+    if ((p.meilleurActe || 0) >= 2) out.push(1);
+    if (p.victoires) out.push(2);
+    return out;
+  }
+  function brasierMax(meta, classe) {
+    if (meta.toutDebloque) return 10;
+    const p = (meta.parClasse || {})[classe] || {};
+    return Math.min(10, p.brasierMax || 0);
+  }
+  function enregistrerFin(meta, run) {
+    meta.renom = (meta.renom || 0) + renomGagne(run);
+    meta.courses = (meta.courses || 0) + 1;
+    meta.parClasse = meta.parClasse || {};
+    const p = meta.parClasse[run.classe] = meta.parClasse[run.classe] || { courses: 0, victoires: 0, meilleurActe: 0, brasierMax: 0 };
+    p.courses++;
+    p.meilleurActe = Math.max(p.meilleurActe, run.acte + 1);
+    if (run.gagne) { p.victoires++; meta.victoires = (meta.victoires || 0) + 1; if (run.brasier >= p.brasierMax) p.brasierMax = Math.min(10, run.brasier + 1); }
+    return meta;
+  }
+
+  const M = {
+    D, alea, SEUILS_XP, RENOM_NIVEAUX, BRASIER,
+    nouvelleCourse, choixCarte, entrerNoeud, jouerCarte, finTour, peutJouer, besoinCible, vivants, intentAffiche, degatsEntrants,
+    prendreCarte, choisirTalismanBoss, quitterRecompense, choisirTalent, ouvrirTresor, quitterEcran,
+    braseroSoigner, braseroMediter, soinBrasero, demanderSelection, annulerSelection, appliquerSelection, affutable,
+    acheterCarte, acheterTalisman, acheterService, prixService, evenementDef, choixPossible, choisirEvenement,
+    def, vals, texte, nomCarte, cout, liens, tribuCompte, talentDef, effets, eff, tailleMain,
+    conseil, jouerCourse, iaEcran, renomGagne, niveauRenom, classesDebloquees, heritagesDebloques, brasierMax, enregistrerFin
   };
-  racine.BraisesMoteur = api;
-  if (typeof module !== 'undefined' && module.exports) module.exports = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this);
+  if (typeof module !== 'undefined' && module.exports) module.exports = M;
+  else racine.BraisesMoteur = M;
+})(typeof window !== 'undefined' ? window : globalThis);

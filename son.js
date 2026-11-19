@@ -1,4 +1,4 @@
-/* Braises : musique et sons générés, aucun fichier audio externe.
+/* Braises : musique et sons générés, aucun fichier audio externe. V6 : nappe plus présente (gain musique relevé).
    V3 : la nappe continue d'un écran à l'autre (familles), thème de boss, stingers. */
 const Son = (() => {
   let ctx, master, musiqueGain, sfxGain, muet = false;
@@ -6,7 +6,7 @@ const Son = (() => {
   const FAMILLE = {
     titre: 'titre', defaite: 'titre',
     chemin: 'chemin', carte: 'chemin', repos: 'chemin', boutique: 'chemin',
-    recompense: 'chemin', relique: 'chemin', evenement: 'chemin', familier: 'chemin',
+    recompense: 'chemin', relique: 'chemin', evenement: 'chemin', familier: 'chemin', tresor: 'chemin', marchand: 'chemin', brasero: 'chemin', niveau: 'chemin', selection: 'chemin', classe: 'titre',
     combat: 'combat', boss: 'boss', victoire: 'victoire'
   };
   const BPM = { titre: 76, chemin: 84, carte: 84, combat: 104, boss: 88, repos: 84, boutique: 84, victoire: 96 };
@@ -20,7 +20,7 @@ const Son = (() => {
       master.gain.value = 0.85;
       master.connect(ctx.destination);
       musiqueGain = ctx.createGain();
-      musiqueGain.gain.value = 0.32;
+      musiqueGain.gain.value = 0.46;
       musiqueGain.connect(master);
       sfxGain = ctx.createGain();
       sfxGain.gain.value = 0.7;
@@ -296,7 +296,7 @@ const Son = (() => {
       const cur = musiqueGain.gain.value;
       musiqueGain.gain.setValueAtTime(cur, now);
       musiqueGain.gain.linearRampToValueAtTime(0.08, now + 0.08);
-      musiqueGain.gain.linearRampToValueAtTime(0.32, now + 2.2);
+      musiqueGain.gain.linearRampToValueAtTime(0.46, now + 2.2);
     }
     if (sorte === 'victoire') {
       [392, 494, 587, 740, 880].forEach((f, i) => osc('triangle', f, t + i * 0.14, 0.42, 0.14));

@@ -7,21 +7,21 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Braises">
-  <meta name="theme-color" content="#140c09">
-  <meta name="description" content="Braises V5 : un jeu de cartes roguelike fait maison. Choisis Solen ou Fumée, traverse deux actes, capture des familiers de braise. Troisième voie : Silex, le Brisegivre.">
-  <title>Braises V5</title>
+  <meta name="theme-color" content="#120b10">
+  <meta name="description" content="Braises V6 : deckbuilder roguelike en pixel art rétro. 8 classes, main de 4 cartes, niveaux et talents, tribus et cartes à quête.">
+  <title>Braises V6</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" href="icones/icone-192.png">
   <link rel="apple-touch-icon" href="icones/icone-180.png">
+  <link rel="preload" href="polices/PixelifySans.ttf" as="font" type="font/ttf" crossorigin>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="cadre">
-    <div id="app" data-version="V5">
-      <div id="fx"></div>
-      <div id="ecran"></div>
-    </div>
+  <div id="app" data-version="V6">
+    <div id="ecran"></div>
   </div>
+  <script src="pix.js"></script>
+  <script src="donnees.js"></script>
   <script src="moteur.js"></script>
   <script src="son.js"></script>
   <script src="jeu.js"></script>
