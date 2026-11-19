@@ -1,13 +1,13 @@
-/* Braises V6 : interface (pixel art, tactile iPhone : on sélectionne une carte, puis on confirme). */
+/* Braises V7 : interface (pixel art, tactile iPhone : on sélectionne une carte, puis on confirme). */
 (function () {
-  const M = window.BraisesMoteur, D = M.D, PIX = window.PIX || {};
-  const CLE_META = 'braises6-meta', CLE_PARTIE = 'braises6-partie';
+  const M = window.BraisesMoteur, D = M.D, PIX = window.PIX || {}, ART = window.ART || { cartes: {}, reliques: {} };
+  const CLE_META = 'braises7-meta', CLE_PARTIE = 'braises7-partie';
   const app = document.getElementById('app');
   const $ecran = document.getElementById('ecran');
   const lire = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
-  let meta = Object.assign({ renom: 0, courses: 0, victoires: 0, parClasse: {}, toutDebloque: false, mentor: true }, lire(CLE_META, {}));
+  let meta = Object.assign({ renom: 0, courses: 0, victoires: 0, parClasse: {}, toutDebloque: false, mentor: true, volMusique: 0.8, volEffets: 0.9 }, lire(CLE_META, null) || lire('braises6-meta', {}));
   let run = lire(CLE_PARTIE, null);
-  if (run && run.v !== 6) run = null;
+  if (run && run.v !== 7) run = null;
   const ui = { ecran: 'titre', sel: null, selCible: null, selNoeud: null, classe: null, heritage: 0, brasier: 0, voile: null, info: null, choix: null, verrou: false, abandon: false };
 
   function sauver() {
@@ -26,21 +26,35 @@
 
   // ---------- cartes ----------
   function instDeck(u) { return run && run.deck.find((x) => x.u === u); }
+  function artHTML(id) {
+    const k = ART.cartes[id]; if (k == null) return '<span class="art"></span>';
+    const x = (k % ART.cols) * ART.w, y = Math.floor(k / ART.cols) * ART.h, n = Math.ceil(Object.keys(ART.cartes).length / ART.cols);
+    return `<span class="art" style="--ax:${k % ART.cols};--ay:${Math.floor(k / ART.cols)};--ac:${ART.cols};--ar:${n}"></span>`;
+  }
+  function relIco(id, s) {
+    s = s || 2; const k = ART.reliques[id]; const n = Object.keys(ART.reliques).length;
+    return `<span class="img rel" style="width:${ART.rs * s}px;height:${ART.rs * s}px;background:url(pix/atlas-reliques.png) ${-k * ART.rs * s}px 0/${n * ART.rs * s}px ${ART.rs * s}px no-repeat"></span>`;
+  }
   function carteHTML(inst, o) {
     o = o || {};
     const d = M.def(inst), v = M.vals(inst);
     const cl = d.cl ? D.CLASSES[d.cl] : null, tr = d.tr ? D.TRIBUS[d.tr] : null;
     const q = d.q ? (instDeck(inst.u) || inst) : null;
     const quete = d.q && (q.niv || 0) < d.v.length - 1 ? `<span class="quete">Quête : ${esc(d.q.txt)} ${q.q || 0}/${d.q.s[q.niv || 0]}</span>` : (d.q ? '<span class="quete">Quête accomplie</span>' : '');
-    return `<button class="carte r-${d.r} ${d.t === 'S' ? 'sort' : 'lame'} ${cl ? 'cl' : ''} ${o.cls || ''}" ${o.attrs || ''} style="${cl ? '--clc:' + cl.couleur : ''}">
-      <span class="cout">${d.c}</span><span class="nom">${esc(M.nomCarte(inst))}</span>
-      <span class="type">${d.t === 'L' ? 'Lame' : 'Sort'}${tr ? ` <span class="tribu" style="background:${tr.couleur}">${tr.nom}</span>` : ''}</span>
+    const k = d.coutV ? d.coutV(v) : d.c;
+    const coutOr = d.or && run ? M.coutOr(run, inst) : d.or;
+    const rar = D.RARETES[d.r] || {};
+    return `<button class="carte r-${d.r} ${d.t === 'S' ? 'sort' : 'lame'} ${cl ? 'cl cl-' + d.cl : 'neutre'} ${o.cls || ''}" ${o.attrs || ''} style="${cl ? '--clc:' + cl.couleur : ''}" title="${esc(rar.nom || '')}">
+      <span class="cout ${inst.gratuit ? 'gratuit' : ''}">${inst.gratuit ? 0 : k}</span>${coutOr ? `<span class="cout-or">${coutOr}</span>` : ''}<span class="gemme" aria-label="${esc(rar.nom || '')}"></span>
+      <span class="nom">${esc(M.nomCarte(inst))}</span>
+      ${artHTML(d.id)}
+      <span class="type">${d.t === 'L' ? 'Lame' : 'Sort'}${tr ? ` <span class="tribu" style="background:${tr.couleur}">${tr.nom}</span>` : ''}${cl ? ` <span class="tribu cls">${esc(cl.nom)}</span>` : ''}</span>
       <span class="texte">${esc(d.txt(v))}</span>${quete}</button>`;
   }
 
   // ---------- statuts ----------
-  const COURT = { force: 'For', robustesse: 'Rob', faible: 'Faib', expose: 'Exp', brulure: 'Brûl', poison: 'Pois', gel: 'Gel', epines: 'Épi', brume: 'Brume', esquive: 'Esq', chaleur: 'Chal', fleches: 'Flè', seve: 'Sève', rage: 'Rage', ames: 'Âmes', rouages: 'Roua', sauvage: 'Sauvage', fragile: 'Frag' };
-  const RESS = ['chaleur', 'fleches', 'seve', 'rage', 'ames', 'rouages'];
+  const COURT = { cadence: 'Cad', echo: 'Écho', ardeur: 'Ard', vol: 'Vol', force: 'For', robustesse: 'Rob', faible: 'Faib', expose: 'Exp', brulure: 'Brûl', poison: 'Pois', gel: 'Gel', epines: 'Épi', brume: 'Brume', esquive: 'Esq', chaleur: 'Chal', fleches: 'Flè', seve: 'Sève', rage: 'Rage', ames: 'Âmes', rouages: 'Roua', sauvage: 'Sauvage', fragile: 'Frag' };
+  const RESS = ['chaleur', 'fleches', 'seve', 'rage', 'ames', 'rouages', 'cadence', 'echo'];
   function statutsHTML(st) {
     return Object.entries(st).filter(([, n]) => n).map(([k, n]) => {
       const def = D.STATUTS[k] || {};
@@ -65,7 +79,7 @@
   function anim(el, cls) { if (!el) return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); setTimeout(() => el.classList.remove(cls), 400); }
   function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; app.appendChild(d); setTimeout(() => d.remove(), 1800); }
   const elE = (u) => $ecran.querySelector(`.ennemi[data-p="${u}"] .spr`);
-  const elH = () => $ecran.querySelector('.heros-zone .spr');
+  const elH = () => $ecran.querySelector('.heros-zone .heros-spr');
   function jouerEvenements(evs, pas) {
     return new Promise((res) => {
       let t = 0;
@@ -86,17 +100,34 @@
     else if (e.k === 'esquive') flotter(elH(), 'esquive', 'info');
     else if (e.k === 'rivet') flotter(elH(), 'Rivet forgé', 'info');
     else if (e.k === 'sauvage') { flotter(elH(), 'Forme sauvage', 'info'); Son.bip('chaleur'); }
-    else if (e.k === 'surcharge') flotter(elH(), 'Surcharge : +1 Force', 'info');
+    else if (e.k === 'surcharge') { flotter(elH(), 'Surcharge : +1 Force', 'info'); Son.bip('surcharge'); }
     else if (e.k === 'suie') flotter(elH(), '+' + e.n + ' Suie', 'touche');
-    else if (e.k === 'quete') toast(D.CARTES[e.id].nom + ' évolue ' + '★'.repeat(e.niv + 1));
+    else if (e.k === 'quete') { toast(D.CARTES[e.id].nom + ' évolue ' + '★'.repeat(e.niv + 1)); Son.bip('niveau'); }
     else if (e.k === 'fleches') flotter(elH(), e.n + ' flèche' + (e.n > 1 ? 's' : ''), 'info');
     else if (e.k === 'mort') Son.bip('mort');
+    else if (e.k === 'esquiveE') { flotter(elE(e.u), 'esquive', 'info'); Son.bip('esquive'); }
+    else if (e.k === 'mue') flotter(elE(e.u), '+' + e.n + ' garde', 'garde');
+    else if (e.k === 'rage') { flotter(elE(e.u), 'Rage !', 'touche'); Son.bip('rage'); }
+    else if (e.k === 'releve') { flotter(elE(e.u), 'Se relève !', 'touche'); Son.bip('rage'); }
+    else if (e.k === 'divise') flotter(elE(e.u), 'Division', 'info');
+    else if (e.k === 'vol') { flotter(elH(), '-' + e.n + ' or', 'touche'); Son.bip('vol'); }
+    else if (e.k === 'fuite') { toast('Il s\'enfuit' + (e.n ? ' avec ' + e.n + ' or' : '')); }
+    else if (e.k === 'renonce') flotter(elE(e.u), 'Soudoyé', 'info');
+    else if (e.k === 'vampire') flotter(elE(e.u), '+' + e.n, 'soin');
+    else if (e.k === 'faux') flotter(elE(e.u), 'Fauché', 'touche');
+    else if (e.k === 'echo') { flotter(elH(), 'Écho prêt', 'info'); Son.bip('echo'); }
+    else if (e.k === 'echoJoue') { flotter(elH(), 'Écho !', 'info'); Son.bip('echo'); }
+    else if (e.k === 'phenix') { toast('La plume de phénix te relève !'); Son.stinger('relique'); }
+    else if (e.k === 'relique') flotter(elH(), e.nom, 'info');
+    else if (e.k === 'famAgit') { const f = $ecran.querySelector(`.fam[data-f="${e.id}"] .spr`); anim(f, 'elan-h'); }
+    else if (e.k === 'paie') { flotter(elH(), '-' + e.n + ' or', 'info'); Son.bip('piece'); }
+    else if (e.k === 'or') { flotter(elH(), '+' + e.n + ' or', 'soin'); Son.bip('piece'); }
   }
 
   // ---------- musique ----------
   function scene() {
     if (ui.ecran !== 'jeu' || !run) return 'titre';
-    if (run.ecran === 'combat') return run.combat && run.combat.type === 'boss' ? 'boss' : 'combat';
+    if (run.ecran === 'combat') return run.combat && run.combat.type === 'boss' ? 'boss' : run.combat && run.combat.type === 'elite' ? 'elite' : 'combat';
     if (run.ecran === 'fin') return run.gagne ? 'victoire' : 'defaite';
     return run.ecran === 'carte' ? 'carte' : run.ecran;
   }
@@ -144,7 +175,7 @@
     const pct = niv >= M.RENOM_NIVEAUX.length ? 100 : Math.round(100 * ((meta.renom || 0) - a) / (b - a));
     const heros = Object.entries(D.CLASSES).map(([k, c]) => `<div class="h ${deb.includes(k) ? '' : 'verrou'}">${spr(c.sprite, 2.6)}<span>${deb.includes(k) ? c.nom : '?'}</span></div>`).join('');
     return `<div class="titre">
-      <div class="centre"><div class="logo">BRAISES</div><div class="sous-logo">V6 · deckbuilder roguelike en pixel art</div></div>
+      <div class="centre"><div class="logo">BRAISES</div><div class="sous-logo">V7 · deckbuilder roguelike en pixel art</div></div>
       <div class="col" style="align-items:center">
         <div class="parade-heros">${heros}</div>
         <div class="feu-titre">${ico('i-feu', 3)}</div>
@@ -158,7 +189,7 @@
         <div class="bascules">
           <button class="bascule ${meta.mentor ? 'on' : ''}" data-a="mentor">Mentor ${meta.mentor ? 'oui' : 'non'}</button>
           <button class="bascule ${meta.toutDebloque ? 'on' : ''}" data-a="tout">Tout débloqué ${meta.toutDebloque ? 'oui' : 'non'}</button>
-          <button class="bascule" data-a="son">${Son.estMuet() ? 'Son coupé' : 'Son'}</button>
+          <button class="bascule" data-a="voile" data-p="options">Son et options</button>
         </div>
         <div class="bascules">
           <button class="bascule" data-a="voile" data-p="aide">Comment jouer</button>
@@ -204,7 +235,7 @@
   // ----- carte -----
   const NOEUDS = {
     combat: ['i-crane', 'Combat', 'Des créatures du coin. Or, expérience et une carte au choix.'],
-    elite: ['i-elite', 'Élite', 'Un adversaire coriace. Plus d\'or, des éclats et un talisman.'],
+    elite: ['i-elite', 'Élite', 'Un adversaire coriace. Plus d\'or, des éclats et une relique au choix.'],
     tresor: ['i-coffre', 'Trésor', 'Un coffre : or, un éclat et une carte au choix.'],
     marchand: ['i-sac', 'Marchand', 'Cartes, talismans, soins, retrait de carte et rangs de compétence.'],
     evenement: ['i-question', 'Inconnu', 'Une rencontre, un choix.'],
@@ -233,16 +264,21 @@
     let fiche;
     if (ui.selNoeud && choix.includes(ui.selNoeud)) {
       const n = c.noeuds[ui.selNoeud], t = NOEUDS[n.type];
-      fiche = `<div class="txt"><b>${n.type === 'boss' ? esc(boss.nom) : t[1]}</b>${n.type === 'boss' ? 'Le gardien de ' + esc(D.MONDES[run.monde].nom) + '. Une carte rare et un talisman au choix.' : t[2]}</div><button class="btn prim" data-a="aller">Y aller</button>`;
+      fiche = `<div class="txt"><b>${n.type === 'boss' ? esc(boss.nom) : t[1]}</b>${n.type === 'boss' ? 'Le gardien de ' + esc(D.MONDES[run.monde].nom) + '. Une carte rare et une relique de boss au choix.' : t[2]}</div><button class="btn prim" data-a="aller">Y aller</button>`;
     } else fiche = `<div class="txt"><b>Où aller ?</b>Touche un lieu qui brille, puis confirme.</div>`;
     const leg = ['combat', 'elite', 'tresor', 'marchand', 'evenement', 'brasero'].map((k) => `<span>${ico(NOEUDS[k][0])} ${NOEUDS[k][1]}</span>`).join('');
     return `${hud()}
-      <div class="carte-titre"><h2>${esc(D.MONDES[run.monde].nom)}</h2><span class="muet">Acte ${run.acte + 1}/3 · Brasier ${run.brasier} · Rang ${run.rang}</span></div>
+      ${relBarre()}<div class="carte-titre"><h2>${esc(D.MONDES[run.monde].nom)}</h2><span class="muet">Acte ${run.acte + 1}/3 · Brasier ${run.brasier} · Rang ${run.rang}</span></div>
       <div class="legende">${leg}</div>
       <div class="carte-zone"><div class="carte-int" style="height:${H}px"><svg viewBox="0 0 100 ${H}" preserveAspectRatio="none">${lignes}</svg>${noeuds}</div></div>
       <div class="fiche-bas">${fiche}</div>`;
   }
 
+  function relBarre() {
+    const r = run.reliques || [], f = run.familiers || [];
+    if (!r.length && !f.length) return '';
+    return `<button class="rel-barre" data-a="voile" data-p="sac">${r.map((id) => relIco(id, 1)).join('')}${f.map((x) => spr(M.famStade(x).sprite, 1, { fixe: true })).join('')}</button>`;
+  }
   // ----- combat -----
   function intentHTML(e) {
     const o = M.intentAffiche(run, run.combat, e); if (!o) return '<span class="intent" style="visibility:hidden">·</span>';
@@ -256,13 +292,15 @@
       case 'deb': return `<span class="intent deb">✶ ${nomSt(o.s)} ${o.v}</span>`;
       case 'soin': return `<span class="intent soin">+ soin ${o.v}</span>`;
       case 'inv': return `<span class="intent inv">Appel</span>`;
+      case 'fuite': return `<span class="intent deb">Fuite</span>`;
+      case 'renonce': return `<span class="intent buf">Soudoyé</span>`;
     }
     return '';
   }
   function intentTexte(e) {
     const o = M.intentAffiche(run, run.combat, e); if (!o) return '';
     const nomSt = (s) => s === 'suie' ? 'des Suies (cartes mortes) dans ta défausse' : (D.STATUTS[s] || {}).nom || s;
-    return { atk: `Va attaquer : ${o.deg} dégâts${o.n > 1 ? ', ' + o.n + ' fois' : ''}.`, atkdeb: `Va attaquer (${o.deg}) et t'infliger ${nomSt(o.s)} ${o.v}.`, atkdef: `Va attaquer (${o.deg}) et se protéger.`, def: `Va se protéger (${o.garde} garde).`, buf: `Va se renforcer (${nomSt(o.s)} +${o.v}).`, deb: `Va t'infliger ${nomSt(o.s)} ${o.v}.`, soin: `Va soigner un allié de ${o.v} PV.`, inv: 'Va appeler du renfort.' }[o.t] || '';
+    return { atk: `Va attaquer : ${o.deg} dégâts${o.n > 1 ? ', ' + o.n + ' fois' : ''}.`, atkdeb: `Va attaquer (${o.deg}) et t'infliger ${nomSt(o.s)} ${o.v}.`, atkdef: `Va attaquer (${o.deg}) et se protéger.`, def: `Va se protéger (${o.garde} garde).`, buf: `Va se renforcer (${nomSt(o.s)} +${o.v}).`, deb: `Va t'infliger ${nomSt(o.s)} ${o.v}.`, soin: `Va soigner un allié de ${o.v} PV.`, inv: 'Va appeler du renfort.', fuite: 'Va s\'enfuir avec ton or !', renonce: 'Soudoyé : ne fera rien ce tour.' }[o.t] || '';
   }
   function rendreCombat() {
     const c = run.combat, cl = D.CLASSES[run.classe], monde = D.MONDES[run.monde];
@@ -270,10 +308,12 @@
     const selInst = ui.sel != null ? c.main[ui.sel] : null;
     const cibler = selInst && M.besoinCible(selInst) && viv.length > 1;
     const nE = c.ennemis.filter((e) => e.pv > 0).length;
+    const valides = cibler ? M.ciblesValides(c).map((e) => e.u) : null;
     const ennemis = c.ennemis.map((e) => {
       const d = D.ENNEMIS[e.id];
       const s = d.boss ? 4.6 : nE >= 3 ? 3 : 4;
-      return `<button class="ennemi ${e.pv <= 0 ? 'mort' : ''} ${cibler && e.pv > 0 ? 'ciblable' : ''}" data-a="ennemi" data-p="${e.u}">
+      const prov = M.P(e, 'provocation') && e.pv > 0;
+      return `<button class="ennemi ${e.pv <= 0 ? 'mort' : ''} ${cibler && e.pv > 0 && (!valides || valides.includes(e.u)) ? 'ciblable' : ''} ${prov ? 'prov' : ''}" data-a="ennemi" data-p="${e.u}">
         ${intentHTML(e)}
         ${spr(e.sprite, s, { flip: true })}
         <span class="jauge"><i style="width:${Math.max(0, 100 * e.pv / e.pvMax)}%"></i><span>${e.garde ? '⛨' + e.garde + ' ' : ''}${e.pv}/${e.pvMax}</span></span>
@@ -282,14 +322,14 @@
     }).join('');
     const heros = `<div class="heros-zone" data-a="heros">
       ${c.j.garde ? `<span class="garde-badge">⛨ ${c.j.garde}</span>` : '<span style="height:18px"></span>'}
-      ${spr(cl.sprite, 4.6)}
+      ${(run.familiers || []).length ? `<span class="heros-ligne">${run.familiers.map((f) => `<span class="fam" data-f="${f.id}">${spr(M.famStade(f).sprite, 2)}</span>`).join('')}</span>` : ''}${spr(cl.sprite, 4.6, { cls: 'heros-spr' })}
       <span class="jauge heros"><i style="width:${100 * run.pv / run.pvMax}%"></i><span>${run.pv}/${run.pvMax}</span></span>
       <span class="statuts">${statutsHTML(c.j.st)}</span>
     </div>`;
     let info = '';
     if (ui.info) {
       const e = c.ennemis.find((x) => x.u === ui.info && x.pv > 0);
-      if (e) { const d = D.ENNEMIS[e.id]; info = `<div class="info-ennemi"><b>${esc(e.nom)}</b> ${d.boss ? '(boss)' : d.elite ? '(élite)' : ''}<br>${intentTexte(e)}${d.passif ? '<br>Capacité : ' + D.PASSIFS[d.passif[0]](d.passif[1]) : ''}${Object.keys(e.st).length ? '<br>' + statutsTexte(e.st) : ''}</div>`; }
+      if (e) { const d = D.ENNEMIS[e.id]; info = `<div class="info-ennemi"><b>${esc(e.nom)}</b> ${d.boss ? '(boss)' : d.elite ? '(élite)' : ''}<br>${intentTexte(e)}${(d.pas || []).map((p) => '<br>• ' + esc(D.PASSIFS[p[0]] ? D.PASSIFS[p[0]](p[1]) : p[0])).join('')}${e.vol ? '<br>Or volé : ' + e.vol : ''}${Object.keys(e.st).length ? '<br>' + statutsTexte(e.st) : ''}</div>`; }
     }
     const mana = Array.from({ length: Math.max(3, c.j.mana) }, (_, i) => `<i class="${i < c.j.mana ? '' : 'vide'}"></i>`).join('');
     const liens = M.liens(run).filter((l) => l.palier >= 0).map((l) => `<span style="color:${l.couleur}">${l.nom} ${l.n}</span>`).join('');
@@ -324,23 +364,41 @@
   }
 
   // ----- récompense -----
+  function reliqueHTML(id, o) {
+    o = o || {}; const t = D.RELIQUES[id];
+    return `<button class="talisman relique ${t.src === 'B' ? 'boss' : ''} ${o.sel ? 'sel' : ''}" ${o.attrs || ''}><span class="ic">${relIco(id, 2)}</span><span><b>${esc(t.nom)}</b><small>${esc(t.txt)}</small></span><span class="rel-tag">${t.src === 'B' ? 'Boss' : 'Élite'}</span></button>`;
+  }
+  function familierHTML(f, o) {
+    o = o || {}; const l = D.FAMILIERS[f.id], st = M.famStade(f), tr = D.TRIBUS[l.tribu];
+    const prochain = (f.stade || 0) < 2 ? ` · évolue après ${[3, 7][f.stade || 0]} combats (${f.combats || 0})` : ' · stade final';
+    return `<button class="talisman familier ${o.sel ? 'sel' : ''}" ${o.attrs || ''}><span class="ic">${spr(st.sprite, 2.4)}</span><span><b>${esc(st.nom)}</b> <span class="tribu" style="background:${tr.couleur}">${tr.nom}</span><small>${esc(st.txt)}${o.offre ? '' : prochain}</small></span></button>`;
+  }
   function rendreRecompense() {
     const r = run.recompense;
-    const tal = r.talisman ? `<div class="section"><h3>Talisman gagné</h3>${talismanHTML(r.talisman)}</div>` : '';
-    let talb = '';
-    if (r.talismansChoix && r.talismansChoix.length) {
-      talb = `<div class="section"><h3>${r.talismanPris ? 'Talisman choisi' : 'Choisis un talisman'}</h3><div class="col">${r.talismansChoix.map((t) => talismanHTML(t, { attrs: r.talismanPris ? '' : `data-a="choixTal" data-p="${t}"`, sel: ui.choix === 'T' + t })).join('')}</div>
-        ${!r.talismanPris && ui.choix && ui.choix[0] === 'T' ? `<button class="btn or" style="margin-top:8px;width:100%" data-a="prendreTal">Prendre ${esc(D.TALISMANS[ui.choix.slice(1)].nom)}</button>` : ''}</div>`;
+    let rel = '';
+    if (r.reliquesChoix && r.reliquesChoix.length) {
+      rel = `<div class="section"><h3>${r.reliquePrise ? 'Relique gagnée' : 'Choisis une relique'}</h3><div class="col">${(r.reliquePrise ? r.reliquesChoix.filter((t) => run.reliques.includes(t)) : r.reliquesChoix).map((t) => reliqueHTML(t, { attrs: r.reliquePrise ? '' : `data-a="choixRel" data-p="${t}"`, sel: ui.choix === 'R' + t })).join('')}</div>
+        ${!r.reliquePrise && ui.choix && ui.choix[0] === 'R' ? `<button class="btn or" style="margin-top:8px;width:100%" data-a="prendreRel">Prendre ${esc(D.RELIQUES[ui.choix.slice(1)].nom)}</button>` : ''}</div>`;
     }
-    const cartes = r.cartePrise ? '<div class="muet centre">Carte ajoutée à ton paquet.</div>' : `<div class="cartes-choix">${r.cartes.map((id) => carteHTML({ id, niv: 0, u: 'r' + id }, { cls: ui.choix === id ? 'sel' : '', attrs: `data-a="choixCarte" data-p="${id}"` })).join('')}</div>
-      ${ui.choix && D.CARTES[ui.choix] ? `<button class="btn prim" style="width:100%" data-a="prendre">Prendre ${esc(D.CARTES[ui.choix].nom)}</button>` : '<div class="muet centre">Touche une carte pour la choisir, puis confirme. Tu peux aussi passer.</div>'}`;
+    let fam = '';
+    if (r.familier && !r.familierPris) {
+      const plein = run.familiers.length >= M.equipeMax(run);
+      fam = `<div class="section"><h3>Un familier s'approche</h3>${familierHTML({ id: r.familier, stade: 0, combats: 0 }, { offre: true })}
+        ${plein ? `<div class="muet">Ton équipe est complète (${M.equipeMax(run)}). Touche un familier à renvoyer pour l'accueillir :</div><div class="col">${run.familiers.map((f, i) => familierHTML(f, { attrs: `data-a="remplFam" data-p="${i}"` })).join('')}</div>`
+          : `<button class="btn prim" style="width:100%;margin-top:6px" data-a="prendreFam">Accueillir ${esc(D.FAMILIERS[r.familier].stades[0].nom)}</button>`}</div>`;
+    } else if (r.familier && r.familierPris) fam = '<div class="muet centre">Un nouveau familier te suit.</div>';
+    const evos = (r.evos || []).length ? `<div class="panneau centre">${r.evos.map((e) => 'Ton familier évolue : <b class="px">' + esc(e.nom) + '</b>').join('<br>')}</div>` : '';
+    const cartes = r.cartePrise ? `<div class="muet centre">${r.passee ? 'Carte passée : +8 or.' : 'Carte ajoutée à ton paquet.'}</div>` : `<div class="cartes-choix">${r.cartes.map((id) => carteHTML({ id, niv: 0, u: 'r' + id }, { cls: ui.choix === id ? 'sel' : '', attrs: `data-a="choixCarte" data-p="${id}"` })).join('')}</div>
+      ${ui.choix && D.CARTES[ui.choix] ? `<button class="btn prim" style="width:100%" data-a="prendre">Prendre ${esc(D.CARTES[ui.choix].nom)}</button>` : `<div class="ligne" style="justify-content:center"><span class="muet">Touche une carte, puis confirme.</span><button class="btn petit" data-a="passerCarte">Passer (+8 or)</button></div>`}`;
+    const t = M.tauxTirage(run, r.type);
+    const taux = `<div class="taux">${['C', 'P', 'R', 'E', 'L'].filter((k) => t[k] > 0).map((k) => `<span class="r-${k}">${D.RARETES[k].nom} ${Math.round(t[k] * 10) / 10} %</span>`).join('')}</div>`;
     return `${hud()}<div class="ecran-centre">
-      <div class="fin-titre" style="font-size:30px;color:var(--or)">${r.type === 'boss' ? 'Boss vaincu !' : 'Victoire'}</div>
+      <div class="fin-titre" style="font-size:30px;color:var(--or)">${r.type === 'boss' ? 'Boss vaincu !' : r.type === 'elite' ? 'Élite vaincue !' : 'Victoire'}</div>
       <div class="butin"><span>${ico('i-or', 2)} +${r.or}</span>${r.eclats ? `<span>${ico('i-eclat', 2)} +${r.eclats}</span>` : ''}<span style="color:var(--vert)">+${r.xp} XP</span>${r.soin ? `<span style="color:var(--vert)">${ico('i-coeur')} +${r.soin}</span>` : ''}</div>
       ${r.niveaux ? `<div class="niveau-titre" style="font-size:22px">Niveau ${run.niveau} atteint !</div>` : ''}
-      ${tal}${talb}
-      <div class="section"><h3>Une carte pour ton paquet</h3>${cartes}</div>
-    </div><div class="pied"><button class="btn ${r.cartePrise ? 'prim' : ''}" data-a="quitterRecompense">${r.cartePrise ? 'Continuer' : 'Passer'}</button></div>`;
+      ${evos}${rel}${fam}
+      <div class="section"><h3>Une carte pour ton paquet</h3>${cartes}${r.cartePrise ? '' : taux}</div>
+    </div><div class="pied"><button class="btn ${r.cartePrise ? 'prim' : ''}" data-a="quitterRecompense">Continuer</button></div>`;
   }
   function talismanHTML(id, o) {
     o = o || {}; const t = D.TALISMANS[id] || o.def;
@@ -395,7 +453,7 @@
 
   function rendreBrasero() {
     const b = run.brasero;
-    const opts = [['soin', 'Se soigner', '+' + M.soinBrasero(run) + ' PV'], ['affuter', 'Affûter', 'Améliore une carte (ou fait avancer sa quête d\'un cran)'], ['mediter', 'Méditer', '+20 XP']];
+    const opts = [['soin', 'Se soigner', '+' + M.soinBrasero(run) + ' PV'], ['affuter', 'Affûter', 'Améliore une carte (ou fait avancer sa quête d\'un cran)'], ['mediter', 'Méditer', '+20 XP']].filter((o) => !(b.faits || []).includes(o[0]));
     return `${hud()}<div class="ecran-centre" style="justify-content:center">
       <h2>Le brasero</h2><div>${ico('i-feu', 6)}</div>
       ${b.fait ? `<div class="muet">${b.fait === 'soin' ? 'Tu te sens mieux.' : b.fait === 'mediter' ? 'Ton esprit s\'éclaircit.' : 'La lame chante.'}</div>` : `<div class="services" style="width:100%">${opts.map(([k, n, t]) => `<button class="service ${ui.choix === k ? 'sel' : ''}" data-a="brasero" data-p="${k}"><b>${n}</b>${t}</button>`).join('')}</div>`}
@@ -464,17 +522,29 @@
       corps = liens + `<div class="grille-deck">${liste.map((x) => carteHTML(x)).join('') || '<span class="muet">Vide.</span>'}</div>`;
     } else if (v === 'sac') {
       const cl = D.CLASSES[run.classe], her = cl.heritages[run.heritage];
-      titre = 'Talismans et talents';
+      titre = 'Sac : reliques, familiers, talents';
       corps = `<div class="col" style="padding:12px">
         <h3>Compétence : ${esc(cl.comp.nom)} (rang ${run.rang})</h3>${cl.comp.rangs.map((r, i) => `<div class="muet" style="${i < run.rang ? 'color:var(--clair)' : ''}">Rang ${i + 1} : ${esc(r)}</div>`).join('')}
         <h3>Héritage</h3>${talismanHTML('her', { def: her, ico: 'i-couronne' })}
-        <h3>Talismans (${run.talismans.length})</h3>${run.talismans.map((t) => talismanHTML(t)).join('') || '<span class="muet">Aucun pour l\'instant. Les élites en donnent, le marchand en vend contre des éclats.</span>'}
+        <h3>Reliques (${(run.reliques || []).length})</h3>${(run.reliques || []).map((t) => reliqueHTML(t)).join('') || '<span class="muet">Les élites et les boss en donnent.</span>'}
+        <h3>Familiers (${(run.familiers || []).length}/${M.equipeMax(run)})</h3>${(run.familiers || []).map((f) => familierHTML(f)).join('') || '<span class="muet">Après certains combats, un familier peut s\'approcher. Il agit au début de chaque tour, évolue, et compte pour sa tribu.</span>'}
+        <h3>Talismans (${run.talismans.length})</h3>${run.talismans.map((t) => talismanHTML(t)).join('') || '<span class="muet">Le marchand en vend contre des éclats.</span>'}
         <h3>Talents (${run.talents.length})</h3>${run.talents.map((id) => talismanHTML(id, { def: M.talentDef(id), ico: 'i-epee' })).join('') || '<span class="muet">Monte de niveau pour en choisir.</span>'}
         <h3>Liens de tribus</h3>${M.liens(run).map((l) => `<div class="muet"><b class="px" style="color:${l.couleur}">${l.nom} ${l.n}</b> : ${l.txt ? esc(l.txt) : 'inactif'} (paliers ${D.TRIBUS[l.tribu].paliers.join(', ')})</div>`).join('')}
       </div>`;
     } else if (v === 'aide') { titre = 'Comment jouer'; corps = AIDE; }
     else if (v === 'nouveautes') { titre = 'Nouveautés'; corps = NOUVEAUTES; }
     else if (v === 'credits') { titre = 'Crédits'; corps = CREDITS; }
+    else if (v === 'options') {
+      titre = 'Son et options';
+      const etat = Son.etat();
+      corps = `<div class="col" style="padding:14px;gap:14px">
+        <label class="reglage"><span>Musique <b>${Math.round(meta.volMusique * 100)} %</b></span><input type="range" min="0" max="100" step="5" value="${Math.round(meta.volMusique * 100)}" data-vol="musique"></label>
+        <label class="reglage"><span>Bruitages <b>${Math.round(meta.volEffets * 100)} %</b></span><input type="range" min="0" max="100" step="5" value="${Math.round(meta.volEffets * 100)}" data-vol="effets"></label>
+        <div class="ligne"><button class="btn" data-a="son">${Son.estMuet() ? 'Rétablir le son' : 'Couper le son'}</button><button class="btn bleu" data-a="testSon">Tester le son</button></div>
+        <div class="muet">État audio : ${esc(etat)}. Sur iPhone, le son démarre au premier toucher. Si tu n'entends rien, vérifie le volume du téléphone, puis touche « Tester le son ».</div>
+      </div>`;
+    }
     return `<div class="voile"><div class="entete"><h2>${esc(titre)}</h2><button class="btn petit" data-a="fermerVoile">Fermer</button></div><div class="contenu">${corps}</div></div>`;
   }
 
@@ -482,37 +552,42 @@
     <h3>Le combat</h3><ul>
     <li>Tu as <b>3 mana</b> par tour et toujours <b>4 cartes en main</b> : chaque carte jouée est aussitôt remplacée.</li>
     <li>Touche une carte pour la lire, puis <b>touche-la encore</b> (ou Jouer) pour confirmer. S'il y a plusieurs ennemis, touche celui que tu vises.</li>
-    <li>Les <b>Lames</b> frappent, les <b>Sorts</b> protègent ou préparent. Chaque classe réagit à l'un ou à l'autre.</li>
-    <li>Au-dessus de chaque ennemi, son <b>intention</b> : ce qu'il fera à son tour. Touche-le pour les détails et sa capacité.</li>
+    <li>Les <b>Lames</b> frappent, les <b>Sorts</b> protègent ou préparent. Chaque classe a sa propre mécanique (Chaleur, Brume, Gel, Flèches, Rouages, Sève, Rage, Âmes, Cadence, Or).</li>
+    <li>Au-dessus de chaque ennemi, son <b>intention</b>. Touche-le pour lire ses tactiques : certains volent ton or, se relèvent, se divisent, protègent leurs alliés ou t'obligent à les viser.</li>
     <li>La <b>garde</b> absorbe les coups et disparaît au tour suivant. Gagner du mana deux fois dans un tour donne de la Force (Surcharge).</li></ul>
+    <h3>Raretés</h3><ul>
+    <li>Le cadre de chaque carte montre sa rareté : <span class="r-C">commune</span> (gris), <span class="r-P">peu commune</span> (vert), <span class="r-R">rare</span> (bleu), <span class="r-E">épique</span> (violet), <span class="r-L">légendaire</span> (or). Une seule carte légendaire de chaque sorte par paquet.</li>
+    <li>Les chances de chaque rareté s'affichent sous les récompenses. Les élites et les boss donnent de meilleures cartes, et chaque récompense sans carte rare augmente un peu tes chances à la suivante.</li></ul>
+    <h3>Reliques et familiers</h3><ul>
+    <li>Chaque élite te laisse choisir une relique parmi deux, chaque boss une relique de boss parmi trois. Elles restent toute la course et changent ta façon de jouer.</li>
+    <li>Après certains combats, un <b>familier</b> s'approche. Il agit au début de chacun de tes tours, évolue après 3 puis 7 combats, et compte alors pour sa tribu.</li></ul>
     <h3>La course</h3><ul>
     <li>Trois actes, chacun dans un monde tiré au hasard, avec un boss au sommet.</li>
-    <li>Les combats rapportent de l'or, de l'XP et une carte au choix. Les élites donnent un talisman et des éclats.</li>
-    <li>À chaque <b>niveau</b>, tu choisis un talent. Chez le marchand, tu peux monter le <b>rang de ta compétence</b>.</li>
-    <li><b>Tribus</b> : Forgés, Bêtes, Lucioles, Cendrés, Givrins. Avec 3, 5 puis 7 cartes d'une tribu dans ton paquet, un lien s'active.</li>
-    <li>Certaines cartes ont une <b>quête</b> : elles évoluent toutes seules (★★, ★★★) quand tu la remplis.</li></ul>
+    <li>À chaque <b>niveau</b>, tu choisis un talent. Chez le marchand, tu peux monter le <b>rang de ta compétence</b> et acheter des talismans contre des éclats.</li>
+    <li><b>Tribus</b> : Forgés, Bêtes, Lucioles, Cendrés, Givrins. Avec 3, 5 puis 7 cartes d'une tribu, un lien s'active.</li>
+    <li>Certaines cartes ont une <b>quête</b> : elles évoluent toutes seules (★★, ★★★).</li></ul>
     <h3>Entre les courses</h3><ul>
-    <li>Chaque course rapporte du <b>renom</b>, qui débloque de nouvelles classes.</li>
-    <li>Atteindre l'acte 2 puis gagner avec une classe débloque ses héritages. Gagner ouvre le Brasier suivant (10 paliers de difficulté).</li>
+    <li>Le <b>renom</b> débloque les classes (Vesper au niveau 7, Nacre au niveau 8), puis les héritages et les Brasiers (10 paliers de difficulté).</li>
     <li>« Tout débloqué », sur l'écran titre, ouvre tout de suite toutes les classes, les héritages et les Brasiers.</li></ul></div>`;
   const NOUVEAUTES = `<div class="texte-long">
+    <h3>V7, 20/11/2026 : cartes illustrées, reliques, familiers</h3><ul>
+    <li>Chaque carte a son illustration en pixel art, un cadre aux couleurs de sa classe et une gemme de rareté : commune, peu commune, rare, épique, légendaire (cadre or animé).</li>
+    <li>Taux de tirage par rareté, affichés sous les récompenses. 5 cartes légendaires et de nouvelles épiques.</li>
+    <li>41 reliques : 31 d'élite (choix parmi 2) et 10 de boss (choix parmi 3).</li>
+    <li>Retour des familiers : 5 lignées de 3 stades, une par tribu.</li>
+    <li>Bestiaire : chaque monstre a sa tactique (vol, fuite, résurrection, division, provocation, protection, rage, vampirisme…).</li>
+    <li>2 nouvelles classes : Vesper l'Horlogère (Cadence et Écho) et Nacre la Prêteuse (elle paie ses coups en or).</li>
+    <li>Musique refaite : thèmes distincts pour le titre, la carte, le combat, l'élite, le boss et le marchand. Nouveaux bruitages. Réglage du volume. Correctif du son sur iPhone.</li>
+    <li>Passer une carte en récompense rapporte 8 or.</li></ul>
     <h3>V6, 19/11/2026 : la refonte pixel art</h3><ul>
-    <li>Tout le jeu passe en pixel art rétro : héros et monstres animés visibles en combat, décors de donjon par monde.</li>
-    <li>8 classes (Solen, Fumée, Silex, Ivra, Bram, Lierre, Grenat, Ossian), chacune avec sa compétence à trois rangs et trois héritages.</li>
-    <li>Main de 4 cartes qui se remplit à chaque carte jouée, 3 mana par tour.</li>
-    <li>Sélection puis confirmation : une carte ne part plus au premier toucher.</li>
-    <li>Progression RPG : XP, niveaux et talents pendant la course, renom et déblocages entre les courses.</li>
-    <li>5 tribus de cartes avec des liens à paliers, et des cartes à quête qui évoluent seules.</li>
-    <li>Marchand complet (cartes, talismans contre éclats, soins, retrait, métamorphose, copie, rangs de compétence), trésors, événements, brasero.</li>
-    <li>5 mondes, 36 ennemis avec intentions et capacités, 6 boss.</li>
-    <li>Mode « Tout débloqué » et Mentor qui suggère un coup.</li>
-    <li>Musique plus présente.</li></ul>
-    <h3>V5, 17/11/2026</h3><ul><li>Silex le Brisegivre, décors par acte, familiers de braise. Reste jouable via le tag v5 du dépôt.</li></ul></div>`;
+    <li>Pixel art rétro, 8 classes, main de 4 cartes, sélection puis confirmation, progression RPG, tribus, quêtes, Mentor, mode « Tout débloqué ».</li></ul>
+    <h3>V5, 17/11/2026</h3><ul><li>Silex le Brisegivre, décors par acte, premiers familiers de braise. Reste jouable via le tag v5 du dépôt.</li></ul></div>`;
   const CREDITS = `<div class="texte-long">
-    <h3>Sprites et décors</h3><p>« 16x16 DungeonTileset II » de 0x72 (v1.7), licence <b>CC0 1.0</b> (domaine public) : 0x72.itch.io/dungeontileset-ii. Recolorés et assemblés pour Braises. Icônes du feu, du point d'interrogation, du sac, de la couronne, de l'éclat, du bouclier et de l'intention d'attaque dessinées pour le jeu.</p>
+    <h3>Sprites et décors</h3><p>« 16x16 DungeonTileset II » de 0x72 (v1.7), licence <b>CC0 1.0</b> (domaine public) : 0x72.itch.io/dungeontileset-ii. Recolorés et assemblés pour Braises.</p>
+    <h3>Illustrations des cartes, reliques et familiers</h3><p>Composées pour Braises à partir du « 1-Bit Pack » 1.2 de Kenney (kenney.nl), licence <b>CC0 1.0</b> : icônes recolorées en trois tons, fonds tramés générés.</p>
     <h3>Police</h3><p>Pixelify Sans, The Pixelify Sans Project Authors, licence <b>SIL Open Font License 1.1</b>.</p>
-    <h3>Musique et sons</h3><p>Générés en direct dans le navigateur, faits maison.</p>
-    <h3>Jeu</h3><p>Braises est un jeu original. Ses mécaniques s'inspirent du genre deckbuilder roguelike (main qui se remplit et classes à compétence évolutive à la façon de Rogue Adventure, carte à embranchements à la façon de Slay the Spire). Aucun nom, texte, visuel ni son n'est repris de ces jeux.</p></div>`;
+    <h3>Musique et sons</h3><p>Composés et générés en direct dans le navigateur (synthèse Web Audio), faits maison. Aucun échantillon externe.</p>
+    <h3>Jeu</h3><p>Braises est un jeu original. Ses mécaniques s'inspirent du genre deckbuilder roguelike (main qui se remplit, classes à compétence évolutive, races de cartes et cartes à quête à la façon de Rogue Adventure ; carte à embranchements, reliques et intentions à la façon de Slay the Spire). Aucun nom, texte, visuel ni son n'est repris de ces jeux.</p></div>`;
 
   // ---------- actions ----------
   function nouvelleCourse() {
@@ -522,13 +597,13 @@
   async function jouerSel(cibleU) {
     const c = run.combat; const i = ui.sel; if (i == null || ui.verrou) return;
     const inst = c.main[i];
-    if (!M.peutJouer(run, c, i)) { Son.bip('erreur'); toast('Pas assez de mana'); return; }
+    if (!M.peutJouer(run, c, i)) { Son.bip('erreur'); toast(M.cout(inst, c) > c.j.mana ? 'Pas assez de mana' : 'Pas assez d\'or'); return; }
     if (M.besoinCible(inst) && cibleU == null && M.vivants(c).length > 1) { toast('Touche un ennemi'); return; }
     const d = M.def(inst);
     const res = M.jouerCarte(run, c, i, cibleU);
-    if (!res.ok) { Son.bip('erreur'); return; }
+    if (!res.ok) { Son.bip('erreur'); if (res.raison === 'provocation') toast('Un ennemi te provoque : vise-le d\'abord'); else if (res.raison === 'or') toast('Pas assez d\'or'); return; }
     ui.sel = null; ui.info = null; ui.detailHeros = false;
-    Son.bip('jouer');
+    Son.bip(d.t === 'L' ? 'lame' : 'sort');
     const fini = run.ecran !== 'combat';
     if (fini) { if (d.t === 'L') anim(elH(), 'elan-h'); ui.verrou = true; await jouerEvenements(res.ev, 0); await attendre(650); ui.verrou = false; Son.stinger('victoire'); ui.choix = null; rendre(); sauver(); return; }
     rendre(); sauver();
@@ -562,7 +637,7 @@
       case 'nouvelle': ui.ecran = 'classe'; ui.classe = ui.classe || meta.dernierClasse || null; break;
       case 'mentor': meta.mentor = !meta.mentor; sauver(); break;
       case 'tout': meta.toutDebloque = !meta.toutDebloque; sauver(); toast(meta.toutDebloque ? 'Tout est débloqué' : 'Progression normale'); break;
-      case 'son': Son.bascule(); break;
+      case 'son': Son.bascule(); meta.muet = Son.estMuet(); sauver(); break;
       case 'classe': if (M.classesDebloquees(meta).includes(p)) { ui.classe = p; ui.heritage = 0; } else toast('Renom niveau ' + D.CLASSES[p].renom + ' requis'); break;
       case 'heritage': if (M.heritagesDebloques(meta, ui.classe).includes(+p)) ui.heritage = +p; else toast('Pas encore débloqué'); break;
       case 'brasier': if (+p <= M.brasierMax(meta, ui.classe)) ui.brasier = +p; else toast('Gagne au Brasier ' + (+p - 1) + ' d\'abord'); break;
@@ -582,13 +657,17 @@
       case 'conseil': { const m = M.conseil(run); if (!m) { toast('Le Mentor : finis ton tour'); return; } ui.sel = m.i; ui.selCible = m.u; ui.info = null; toast('Le Mentor : ' + D.CARTES[run.combat.main[m.i].id].nom + (m.u != null && M.vivants(run.combat).length > 1 ? ' sur ' + run.combat.ennemis.find((e) => e.u === m.u).nom : '')); break; }
       case 'fin': finDuTour(); return;
       case 'choixCarte': ui.choix = ui.choix === p ? null : p; break;
-      case 'prendre': if (ui.choix && M.prendreCarte(run, ui.choix)) { Son.bip('soin'); ui.choix = null; sauver(); } break;
-      case 'choixTal': ui.choix = 'T' + p; break;
-      case 'prendreTal': if (ui.choix && M.choisirTalismanBoss(run, ui.choix.slice(1))) { Son.stinger('relique'); ui.choix = null; sauver(); } break;
+      case 'prendre': if (ui.choix && M.prendreCarte(run, ui.choix)) { Son.bip('carte'); ui.choix = null; sauver(); } break;
+      case 'passerCarte': if (M.passerCarte(run)) { Son.bip('piece'); ui.choix = null; sauver(); } break;
+      case 'choixRel': ui.choix = 'R' + p; Son.bip('clic'); break;
+      case 'prendreRel': if (ui.choix && M.choisirRelique(run, ui.choix.slice(1))) { Son.stinger('relique'); ui.choix = null; sauver(); } break;
+      case 'prendreFam': if (M.prendreFamilier(run)) { Son.stinger('familier'); sauver(); } break;
+      case 'remplFam': if (M.prendreFamilier(run, +p)) { Son.stinger('familier'); toast('Ton nouveau familier te suit'); sauver(); } break;
+      case 'testSon': Son.debloquer(); Son.stinger('victoire'); break;
       case 'quitterRecompense': M.quitterRecompense(run); ui.choix = null; sauver(); break;
       case 'choixTalent': ui.choix = p; break;
       case 'prendreTalent': if (ui.choix && M.choisirTalent(run, ui.choix)) { Son.stinger('relique'); ui.choix = null; sauver(); } break;
-      case 'ouvrir': M.ouvrirTresor(run); Son.stinger('relique'); ui.choix = null; sauver(); break;
+      case 'ouvrir': M.ouvrirTresor(run); Son.bip('coffre'); ui.choix = null; sauver(); break;
       case 'quitter': M.quitterEcran(run); ui.choix = null; sauver(); break;
       case 'etal': ui.choix = ui.choix === p ? null : p; break;
       case 'acheter': {
@@ -596,7 +675,7 @@
         if (k === 'c') ok = M.acheterCarte(run, +r);
         else if (k === 't') ok = M.acheterTalisman(run, +r);
         else ok = M.acheterService(run, r);
-        if (ok) { Son.bip('soin'); ui.choix = null; sauver(); } else { Son.bip('erreur'); toast(k === 't' || r === 'relance' ? 'Pas assez d\'éclats' : 'Pas assez d\'or'); }
+        if (ok) { Son.bip('achat'); ui.choix = null; sauver(); } else { Son.bip('erreur'); toast(k === 't' || r === 'relance' ? 'Pas assez d\'éclats' : 'Pas assez d\'or'); }
         break;
       }
       case 'brasero': ui.choix = p; break;
@@ -611,10 +690,25 @@
     rendre();
   }
 
+  // Son : iOS n'autorise l'audio qu'après un geste. On déverrouille au tout premier toucher, quel qu'il soit.
+  function debloquerSon() {
+    try { Son.debloquer(); Son.volumes(meta.volMusique, meta.volEffets); if (meta.muet && !Son.estMuet()) Son.bascule(); window.__sonPret = true; Son.musique(scene()); } catch (e) {}
+  }
+  ['pointerdown', 'touchend', 'keydown'].forEach((t) => document.addEventListener(t, () => { if (!window.__sonPret || Son.suspendu()) debloquerSon(); }, { passive: true }));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && window.__sonPret) Son.debloquer(); });
+  app.addEventListener('input', (ev) => {
+    const r = ev.target.closest('[data-vol]'); if (!r) return;
+    const v = (+r.value) / 100;
+    if (r.dataset.vol === 'musique') meta.volMusique = v; else meta.volEffets = v;
+    Son.volumes(meta.volMusique, meta.volEffets);
+    const b = r.parentElement.querySelector('b'); if (b) b.textContent = Math.round(v * 100) + ' %';
+    sauver();
+  });
+  app.addEventListener('change', (ev) => { const r = ev.target.closest('[data-vol]'); if (r && r.dataset.vol === 'effets') Son.bip('lame'); });
   app.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-a]');
     if (!b) return;
-    if (!window.__sonPret) { try { Son.init(); window.__sonPret = true; } catch (e) {} }
+    if (!window.__sonPret) debloquerSon();
     action(b.dataset.a, b.dataset.p);
   });
   // niveaux gagnés hors combat (méditer, événement) : on les règle au retour sur la carte
