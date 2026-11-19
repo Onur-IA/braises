@@ -570,7 +570,7 @@
     <li>Le <b>renom</b> débloque les classes (Vesper au niveau 7, Nacre au niveau 8), puis les héritages et les Brasiers (10 paliers de difficulté).</li>
     <li>« Tout débloqué », sur l'écran titre, ouvre tout de suite toutes les classes, les héritages et les Brasiers.</li></ul></div>`;
   const NOUVEAUTES = `<div class="texte-long">
-    <h3>V7, 20/11/2026 : cartes illustrées, reliques, familiers</h3><ul>
+    <h3>V7, 19/11/2026 : cartes illustrées, reliques, familiers</h3><ul>
     <li>Chaque carte a son illustration en pixel art, un cadre aux couleurs de sa classe et une gemme de rareté : commune, peu commune, rare, épique, légendaire (cadre or animé).</li>
     <li>Taux de tirage par rareté, affichés sous les récompenses. 5 cartes légendaires et de nouvelles épiques.</li>
     <li>41 reliques : 31 d'élite (choix parmi 2) et 10 de boss (choix parmi 3).</li>
