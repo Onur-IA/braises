@@ -248,9 +248,13 @@ h2 { font-size: 22px; text-shadow: 2px 2px 0 #000; } h3 { font-size: 16px; lette
 .carte.r-E { --rc: #b066f0; background: radial-gradient(130% 70% at 50% 0%, #3e2856, #1a1024 72%); }
 .carte.r-L { --rc: #f2c23a; background: radial-gradient(130% 70% at 50% 0%, #4e3a1a, #20160c 72%); animation: legende 2.4s linear infinite; }
 @keyframes legende { 0%, 100% { box-shadow: inset 0 0 0 2px #f2c23a, inset 0 0 0 3px #0a0507, 0 0 0 2px #0a0507, 0 4px 0 #000, 0 0 6px 1px #f2c23a88; } 50% { box-shadow: inset 0 0 0 2px #fff2b0, inset 0 0 0 3px #0a0507, 0 0 0 2px #0a0507, 0 4px 0 #000, 0 0 12px 3px #ffd84aaa; } }
-.carte.r-E::before, .carte.r-L::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2; background: linear-gradient(115deg, #0000 35%, #fff6 48%, #0000 60%); background-size: 280% 100%; animation: reflet 3s linear infinite; mix-blend-mode: overlay; }
-.carte.r-E::before { animation-duration: 4.2s; }
-@keyframes reflet { from { background-position: 140% 0; } to { background-position: -140% 0; } }
+.carte.r-E::after, .carte.r-L::after { z-index: 2; background:
+  linear-gradient(115deg, #0000 35%, #fff6 48%, #0000 60%) 0 0 / 280% 100% no-repeat,
+  linear-gradient(var(--rc), var(--rc)) 0 0 / 5px 5px no-repeat, linear-gradient(var(--rc), var(--rc)) 100% 0 / 5px 5px no-repeat,
+  linear-gradient(var(--rc), var(--rc)) 0 100% / 5px 5px no-repeat, linear-gradient(var(--rc), var(--rc)) 100% 100% / 5px 5px no-repeat;
+  animation: reflet 3s linear infinite; mix-blend-mode: overlay; }
+.carte.r-E::after { animation-duration: 4.2s; }
+@keyframes reflet { from { background-position: 140% 0, 0 0, 100% 0, 0 100%, 100% 100%; } to { background-position: -140% 0, 0 0, 100% 0, 0 100%, 100% 100%; } }
 .carte.r-M { --rc: #5a3a6a; background: radial-gradient(130% 70% at 50% 0%, #2a1630, #0e0810 72%); }
 .carte.r-G { --rc: #7a8a9a; }
 .carte .tete { display: flex; align-items: center; gap: 3px; height: 27px; flex: none; margin: -1px -1px 0; padding: 1px 2px; background: linear-gradient(#3a2a2e, #24181c); box-shadow: inset 0 -2px 0 var(--clc), 0 1px 0 #000; }
@@ -276,7 +280,7 @@ h2 { font-size: 22px; text-shadow: 2px 2px 0 #000; } h3 { font-size: 16px; lette
 .carte.injouable { filter: grayscale(.7) brightness(.6); }
 .carte.conseil { outline: 2px solid var(--vert); outline-offset: 1px; }
 .carte.conseil .tete::after { content: ''; }
-.main .carte.conseil::before, .cartes-choix .carte.conseil::before, .etal .carte.conseil::before { content: 'Conseil'; position: absolute; top: -13px; left: 50%; transform: translateX(-50%); z-index: 3; font-family: var(--px); font-size: 10px; background: var(--vert); color: #000; padding: 0 4px; box-shadow: 0 0 0 1px #000; mix-blend-mode: normal; animation: none; }
+.main .carte.conseil::before, .cartes-choix .carte.conseil::before, .etal .carte.conseil::before { content: 'Conseil'; position: absolute; top: -13px; left: 50%; bottom: auto; right: auto; transform: translateX(-50%); z-index: 3; font-family: var(--px); font-size: 10px; background: var(--vert); color: #000; padding: 0 4px; box-shadow: 0 0 0 1px #000; mix-blend-mode: normal; animation: none; }
 .main .carte.conseil.sel::before { display: none; }
 .carte.grande { flex: none; width: 150px; max-width: none; }
 .carte.grande .nom { font-size: 15px; }
@@ -342,7 +346,7 @@ h2 { font-size: 22px; text-shadow: 2px 2px 0 #000; } h3 { font-size: 16px; lette
 .voile.evolution { align-items: center; justify-content: center; padding: calc(12px + var(--safe-t)) 12px calc(12px + var(--safe-b)); background: radial-gradient(circle at 50% 30%, rgba(90,50,20,.96), rgba(6,3,5,.97) 72%); }
 .evo-boite { position: relative; width: 100%; max-width: 430px; max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; align-items: center; padding: 6px 2px; }
 .evo-titre { font-family: var(--px); font-size: 26px; color: var(--or); text-shadow: 3px 3px 0 #000, 0 0 18px rgba(255,200,90,.6); display: flex; gap: 8px; align-items: center; }
-.evo-titre .tribu { font-size: 12px; padding: 0 5px; color: #140a08; }
+.evo-titre .tribu { font-size: 12px; padding: 0 5px; color: #140a08; text-shadow: none; }
 .evo-sprite { padding: 8px; filter: drop-shadow(0 0 12px rgba(255,230,140,.6)); animation: flotte-fam 1.8s ease-in-out infinite; }
 .evo-choix { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
 .evo-opt { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; background: linear-gradient(#2e1c25, #1c1117); box-shadow: inset 0 0 0 1px var(--bord2), 0 0 0 2px #070306, 0 4px 0 #000; text-align: center; }
@@ -401,4 +405,4 @@ h2 { font-size: 22px; text-shadow: 2px 2px 0 #000; } h3 { font-size: 16px; lette
   .titre { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 10px 30px; padding: 12px; align-content: center; }
   .evo-choix { grid-template-columns: 1fr 1fr; }
 }
-@media (prefers-reduced-motion: reduce) { .spr.anim, .noeud.ouvert, .braise-p, .brume-scene, .torche .lueur, .carte.r-L, .carte::before { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .spr.anim, .noeud.ouvert, .braise-p, .brume-scene, .torche .lueur, .carte.r-L, .carte.r-E::after, .carte.r-L::after { animation: none !important; } }
