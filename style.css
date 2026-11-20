@@ -406,3 +406,47 @@ h2 { font-size: 22px; text-shadow: 2px 2px 0 #000; } h3 { font-size: 16px; lette
   .evo-choix { grid-template-columns: 1fr 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .spr.anim, .noeud.ouvert, .braise-p, .brume-scene, .torche .lueur, .carte.r-L, .carte.r-E::after, .carte.r-L::after { animation: none !important; } }
+
+/* ---------- V9 ---------- */
+.fortune-mini { display: inline-block; width: 6px; height: 18px; background: #1a1016; box-shadow: inset 0 0 0 1px #4a3040; position: relative; vertical-align: middle; }
+.fortune-mini i { position: absolute; left: 1px; right: 1px; bottom: 1px; background: linear-gradient(#ffe08a, #c070ff); max-height: calc(100% - 2px); }
+.fortune { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; color: #c9b8d8; padding: 2px 0; }
+.fortune > span:first-child { font-family: var(--px); color: #e0c8ff; }
+.fortune-barre { display: inline-flex; gap: 2px; }
+.fortune-barre i { width: 7px; height: 7px; background: #2a1e2a; box-shadow: inset 0 0 0 1px #4a3a4a; }
+.fortune-barre i.on { background: #c88aff; box-shadow: 0 0 4px #c88aff; }
+.boss-annonce { display: flex; align-items: center; gap: 8px; padding: 2px 12px 0; font-size: 12px; color: #e8c0b0; flex-wrap: wrap; }
+.boss-annonce b { color: #ff8a6a; font-family: var(--px); }
+.boss-annonce .fortune { margin-left: auto; }
+.ligne-conseils { display: flex; align-items: center; gap: 6px; padding: 0 10px; }
+.ligne-conseils .mentor-ligne { flex: 1; margin: 2px 0; min-width: 0; }
+.conseiller-btn { flex: none; background: #2a1e3e; box-shadow: inset 0 0 0 1px #6a4aa0; color: #e8dcff; }
+.btn.violet { background: linear-gradient(#4a2e6a, #2e1c44); color: #f0e4ff; }
+.actions .btn { font-size: 14px; padding: 6px 2px; min-width: 0; }
+.noeud.enflamme { box-shadow: 0 0 0 3px #ff6a20, 0 0 14px rgba(255,120,40,.7); animation: braiser 1.4s ease-in-out infinite alternate; }
+@keyframes braiser { from { filter: brightness(1); } to { filter: brightness(1.35); } }
+.voie { font-family: var(--num); font-size: 11px; padding: 1px 5px; border-radius: 3px; margin-left: 4px; vertical-align: 1px; }
+.voie.v-0\.5 { background: #1e3a2a; color: #a8f0c0; }
+.voie.v-1\.5 { background: #3a3220; color: #f0dca0; }
+.voie.v-2\.5 { background: #4a1a1a; color: #ffb0a0; }
+.tuile .arch { font-size: 9px; color: #b8a8b0; display: block; line-height: 1; }
+.serments button .num { color: var(--or, #f2c23a); }
+.section-leg { box-shadow: inset 0 0 0 1px #8a6a20, 0 0 18px rgba(255,210,90,.18); padding: 6px; border-radius: 4px; }
+.conseiller .option { background: #1a1220; box-shadow: inset 0 0 0 1px #3a2a48; padding: 8px 10px; border-radius: 4px; }
+.conseiller .option.meilleur { box-shadow: inset 0 0 0 1px #8a6ad0, 0 0 10px rgba(160,120,255,.25); }
+.conseiller .pc { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; font-size: 13px; }
+.conseiller .pour { color: #a8e8b0; }
+.conseiller .contre { color: #f0a8a0; }
+.tag-meilleur { font-size: 11px; background: #3a2a60; color: #e0d0ff; padding: 1px 5px; border-radius: 3px; }
+.risque { font-size: 11px; padding: 1px 5px; border-radius: 3px; }
+.risque.r-faible { background: #1e3a2a; color: #a8f0c0; }
+.risque.r-moyen { background: #3a3220; color: #f0dca0; }
+.risque.r-élevé { background: #4a1a1a; color: #ffb0a0; }
+@media (max-width: 400px) {
+  .hud { gap: 5px; padding: 6px 6px; }
+  .hud .niv { min-width: 46px; }
+  .hud .btn { padding: 2px 6px; }
+}
+.hud .spr { flex: none; }
+.hud > * { flex-shrink: 0; }
+.hud .vide { flex: 1 1 0; min-width: 0; }

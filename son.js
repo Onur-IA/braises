@@ -1,5 +1,7 @@
-/* Braises V7 : musique et bruitages synthétisés en direct (Web Audio), aucun fichier audio externe.
-   Thèmes distincts : titre, carte, combat, élite, boss, marchand. Réverbération, compresseur, volumes réglables.
+/* Braises V9 : musique et bruitages synthétisés en direct (Web Audio), aucun fichier audio externe.
+   V9 : bande originale refaite dans l'esprit des musiques de RPG japonais des années 90 (piano, cordes, harpe, chœur),
+   avec des mélodies entièrement originales. Leitmotiv (titre), ambiance de carte, combat à basse mouvante, élite,
+   boss avec chœur synthétique, marchand, fanfare de victoire. Réverbération, compresseur, volumes réglables.
    iOS : session audio « playback » (ignore le bouton silencieux si possible), déblocage au premier geste,
    élément <audio> silencieux en boucle, reprise après interruption ou retour dans l'appli. */
 const Son = (() => {
@@ -118,37 +120,68 @@ const Son = (() => {
     scie: (d, t, m, dur, v) => { voix(d, 'sawtooth', hz(m), t, dur, v * 0.5, { cut: 3200, cut2: 900, d: 0.1, s: 0.6, r: 0.08, rev: 0.25, det: -6 }); voix(d, 'sawtooth', hz(m), t, dur, v * 0.35, { cut: 2200, det: 7, r: 0.08 }); },
     cuivre: (d, t, m, dur, v) => { [-7, 0, 7].forEach((det) => voix(d, 'sawtooth', hz(m), t, dur, v * 0.36, { a: 0.06, cut: 500, cut2: 2400, ct: 0.18, q: 1.2, det, r: 0.18, rev: 0.5, vib: 0.004 })); },
     marimba: (d, t, m, dur, v) => { voix(d, 'sine', hz(m), t, 0.3, v, { d: 0.25, s: 0.01, r: 0.1, rev: 0.25 }); voix(d, 'sine', hz(m) * 4, t, 0.05, v * 0.25, { r: 0.04 }); },
-    pizz: (d, t, m, dur, v) => voix(d, 'triangle', hz(m), t, 0.2, v, { d: 0.18, s: 0.01, cut: 1600, r: 0.08, rev: 0.25 })
+    pizz: (d, t, m, dur, v) => voix(d, 'triangle', hz(m), t, 0.2, v, { d: 0.18, s: 0.01, cut: 1600, r: 0.08, rev: 0.25 }),
+    // V9 : piano (partiels qui s'éteignent vite, petit marteau), cordes (ensemble désaccordé, attaque lente, vibrato),
+    // harpe (pincé clair), chœur (scie filtrée par deux formants de voyelle « a » puis « o »).
+    piano: (d, t, m, dur, v) => {
+      const f = hz(m), l = Math.min(2.2, dur + 0.9);
+      voix(d, 'triangle', f, t, l, v, { a: 0.003, d: 0.35, s: 0.25, r: 0.5, rev: 0.4 });
+      voix(d, 'sine', f * 2, t, l * 0.6, v * 0.35, { a: 0.002, d: 0.2, s: 0.12, r: 0.3, rev: 0.4 });
+      voix(d, 'sine', f * 3.01, t, 0.25, v * 0.12, { a: 0.002, d: 0.12, s: 0.02, r: 0.1 });
+      bruit(d, t, 0.03, v * 0.12, { f: 2500, q: 1.5 });
+    },
+    cordes: (d, t, m, dur, v) => { [-11, -3, 4, 12].forEach((det) => voix(d, 'sawtooth', hz(m), t, dur, v * 0.22, { a: Math.min(0.35, dur * 0.3), cut: 1900, q: 0.4, det, r: 0.35, rev: 0.55, vib: 0.005 })); },
+    harpe: (d, t, m, dur, v) => { voix(d, 'triangle', hz(m), t, 0.6, v, { a: 0.002, d: 0.4, s: 0.05, r: 0.5, rev: 0.6 }); voix(d, 'sine', hz(m) * 2, t, 0.25, v * 0.3, { a: 0.002, d: 0.15, s: 0.02, r: 0.2, rev: 0.5 }); },
+    choeur: (d, t, m, dur, v, voyelle) => {
+      const F = voyelle === 'o' ? [450, 800] : [730, 1090];
+      [-8, 0, 8].forEach((det) => {
+        const os = ctx.createOscillator(); os.type = 'sawtooth'; os.frequency.value = hz(m); os.detune.value = det;
+        const l = ctx.createOscillator(), lg = ctx.createGain(); l.frequency.value = 4.8 + det / 20; lg.gain.value = hz(m) * 0.006; l.connect(lg); lg.connect(os.frequency);
+        const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v * 0.3, t + Math.min(0.45, dur * 0.4)); g.gain.setValueAtTime(v * 0.3, t + dur); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.5);
+        F.forEach((fq, k) => { const b = ctx.createBiquadFilter(); b.type = 'bandpass'; b.frequency.value = fq; b.Q.value = 7; const bg = ctx.createGain(); bg.gain.value = k ? 0.7 : 1; os.connect(b); b.connect(bg); bg.connect(g); });
+        g.connect(d); if (revSend) { const s = ctx.createGain(); s.gain.value = 0.7; g.connect(s); s.connect(revSend); }
+        os.start(t); os.stop(t + dur + 0.6); l.start(t); l.stop(t + dur + 0.6);
+      });
+    }
   };
   const BASSE = {
     ronde: (d, t, m, dur, v) => voix(d, 'triangle', hz(m), t, dur, v, { cut: 600, r: 0.1 }),
     pulse: (d, t, m, dur, v) => voix(d, 'sawtooth', hz(m), t, dur, v * 0.8, { cut: 900, cut2: 220, ct: dur, q: 3, r: 0.04 }),
     lourde: (d, t, m, dur, v) => { voix(d, 'sawtooth', hz(m), t, dur, v * 0.7, { cut: 700, cut2: 180, ct: dur, q: 6, r: 0.05 }); voix(d, 'square', hz(m - 12), t, dur, v * 0.35, { cut: 300, r: 0.05 }); },
-    pizz: (d, t, m, dur, v) => voix(d, 'triangle', hz(m), t, 0.22, v, { d: 0.2, s: 0.02, r: 0.06 })
+    pizz: (d, t, m, dur, v) => voix(d, 'triangle', hz(m), t, 0.22, v, { d: 0.2, s: 0.02, r: 0.06 }),
+    // V9 : basse de cordes graves, attaque nette, pour les lignes qui bougent
+    archet: (d, t, m, dur, v) => { voix(d, 'sawtooth', hz(m), t, dur, v * 0.6, { a: 0.01, cut: 1100, cut2: 400, ct: dur, q: 1.5, r: 0.06, det: -5 }); voix(d, 'triangle', hz(m), t, dur, v * 0.6, { a: 0.005, r: 0.06 }); }
   };
 
   // ---------- thèmes (compositions originales) ----------
   // acc : [demi-tons depuis la tonique, 'm' ou 'M'] par mesure. mel : une mesure = 8 croches (« - » tenue, « . » silence).
   const T = {
-    titre: { bpm: 72, ton: 50, acc: [[0, 'm'], [-4, 'M'], [3, 'M'], [-2, 'M'], [0, 'm'], [-4, 'M'], [3, 'M'], [-2, 'M']], lead: 'cloche', oct: 24, lv: 0.22,
-      mel: ['7 - 5 3 2 - 0 -', '3 - - 2 0 - - -', '0 - 3 - 7 - 10 -', '10 - - 7 5 - 2 -', '12 - - 10 7 - 5 -', '8 - 7 - 5 - 3 -', '3 - 5 - 7 - 12 -', '14 - - - 10 - - -'],
-      basse: 'ronde', bp: '0-------5-------', padv: 0.2, cut: 1100, arp: 'up', arpv: 0.05, dr: {} },
-    carte: { bpm: 96, ton: 45, acc: [[0, 'm'], [5, 'M'], [0, 'm'], [-2, 'M'], [-4, 'M'], [-2, 'M'], [0, 'm'], [0, 'm']], lead: 'flute', oct: 24, lv: 0.2,
-      mel: ['0 - 2 3 7 - 5 3', '5 - 9 - 12 - 9 -', '7 - 5 3 2 - 0 -', '-2 - 2 - 5 - . .', '-4 - 0 - 3 - 0 -', '-2 - 2 - 5 - 7 -', '12 - 10 - 7 - 3 2', '0 - - - . . . .'],
-      basse: 'ronde', bp: '0---0-5-0---o-5-', padv: 0.12, cut: 1500, arp: 'pluck', arpv: 0.07,
-      dr: { k: 'x.......x.......', s: '....x.......x...', h: '..h...h...h...hh' }, drv: 0.6 },
-    combat: { bpm: 138, ton: 40, acc: [[0, 'm'], [-4, 'M'], [-2, 'M'], [-5, 'M'], [0, 'm'], [-4, 'M'], [5, 'm'], [-5, 'M']], lead: 'carre', oct: 24, lv: 0.17,
-      mel: ['0 0 7 0 10 0 7 5', '3 0 -4 0 3 5 3 0', '2 2 5 2 7 5 2 -2', '7 - 11 - 14 - 11 7', '12 - 10 7 12 - 15 -', '15 - 12 - 8 - 7 -', '12 - 8 - 5 - 8 12', '11 - 14 - 19 - - -'],
-      basse: 'pulse', bp: '0.0.0.o.0.0.5.o.', padv: 0.09, cut: 1800,
-      dr: { k: 'x...x...x...x.x.', s: '....s.......s...', h: 'hhhhhhhhhhhhhhho', t: '..............tt' }, drv: 0.85, intro: 2 },
-    elite: { bpm: 148, ton: 37, acc: [[0, 'm'], [1, 'M'], [0, 'm'], [-2, 'M'], [0, 'm'], [1, 'M'], [3, 'M'], [1, 'M']], lead: 'scie', oct: 24, lv: 0.17,
+    // Leitmotiv de Braises (ré mineur) : piano sur cordes, harpe en arpège. Mélodie originale.
+    titre: { bpm: 66, ton: 50, acc: [[0, 'm'], [-4, 'M'], [5, 'm'], [7, 'M'], [0, 'm'], [3, 'M'], [-4, 'M'], [7, 'M']], lead: 'piano', oct: 24, lv: 0.24,
+      mel: ['0 - 3 - 7 - 10 8', '7 - - - 5 3 5 -', '3 - 2 0 -2 - 0 -', '2 - - - . . . .', '0 - 3 - 7 - 12 14', '15 - - 14 12 - 10 -', '8 - 10 - 7 - 5 3', '2 - - - 0 - - -'],
+      basse: 'ronde', bp: '0-------5-------', cordes: 0.13, harpe: 'monte', harpev: 0.06, cut: 1100, dr: {} },
+    // Ambiance de carte : calme, harpe et flûte, le leitmotiv en valeurs longues.
+    carte: { bpm: 84, ton: 45, acc: [[0, 'm'], [-2, 'M'], [-4, 'M'], [-5, 'M'], [0, 'm'], [3, 'M'], [5, 'm'], [7, 'M']], lead: 'flute', oct: 24, lv: 0.12,
+      mel: ['0 - - - 3 - - -', '7 - - - 5 - - -', '3 - - 2 0 - - -', '. . . . . . . .', '0 - - - 3 - 7 -', '10 - - - 8 - 7 -', '5 - - - 3 - 2 -', '. . . . . . . .'],
+      basse: 'ronde', bp: '0-------0-------', cordes: 0.045, harpe: 'vague', harpev: 0.04, cut: 1300,
+      dr: { sh: '....s.......s...' }, drv: 0.35, intro: 2 },
+    // Combat : basse mouvante en croches, cordes en contretemps, mélodie aux cuivres. Original.
+    combat: { bpm: 152, ton: 40, acc: [[0, 'm'], [0, 'm'], [-4, 'M'], [-2, 'M'], [0, 'm'], [5, 'm'], [-4, 'M'], [7, 'M']], lead: 'cuivre', oct: 24, lv: 0.15,
+      mel: ['7 - - 8 7 - 3 -', '5 - 3 2 3 - - -', '0 - 3 - 8 - 7 5', '7 - - - 10 - - -', '12 - - 10 8 - 7 -', '8 - 10 - 12 - 13 -', '15 - 12 - 8 - 12 -', '11 - - - 14 - - -'],
+      basse: 'archet', bmel: ['0 0 12 0 10 0 7 0', '0 0 12 0 3 5 7 10', '0 0 12 0 0 7 5 3', '0 0 7 0 5 7 10 12', '0 12 0 10 0 7 3 5', '0 0 7 0 3 0 2 3', '0 0 12 0 7 5 3 7', '0 0 7 9 11 12 11 7'],
+      cordes: 0.06, stab: true, padv: 0, cut: 1800,
+      dr: { k: 'x...x...x...x.x.', s: '....s.......s...', h: 'h.hhh.hhh.hhh.ho', t: '............tttt' }, drv: 0.8, intro: 2 },
+    elite: { bpm: 160, ton: 37, acc: [[0, 'm'], [1, 'M'], [0, 'm'], [-2, 'M'], [0, 'm'], [1, 'M'], [3, 'M'], [1, 'M']], lead: 'scie', oct: 24, lv: 0.15,
       mel: ['0 - 1 0 7 - 8 7', '8 - 5 - 1 - 5 8', '0 - 1 0 12 - 10 8', '5 - 2 - -2 - . .', '12 13 12 10 8 - 7 -', '13 - 8 - 5 - 1 -', '3 - 7 - 10 - 15 -', '13 - 12 - 8 - - -'],
-      basse: 'lourde', bp: '0000o0000000o0o0', padv: 0.1, cut: 1300,
-      dr: { k: 'x.x.x.x.x.x.x.xx', s: '....s.......s..s', h: 'h.h.h.h.h.h.h.h.', t: '............ttTT' }, drv: 0.9, intro: 1 },
-    boss: { bpm: 112, ton: 38, acc: [[0, 'm'], [-4, 'M'], [5, 'm'], [7, 'M'], [0, 'm'], [-4, 'M'], [-2, 'M'], [7, 'M']], lead: 'cuivre', oct: 24, lv: 0.2,
-      mel: ['0 - - - 7 - - -', '8 - - 7 5 - 3 -', '5 - - - 8 - 7 5', '7 - 11 - 14 - - -', '12 - - - 15 - 14 12', '10 - - - 8 - 7 -', '10 - - - 14 - 17 -', '14 - - - 11 - 7 -'],
-      basse: 'lourde', bp: '0-----0-0-----5-', padv: 0.22, cut: 1700, choeur: true,
-      dr: { T: 'T.......T...T...', k: 'x.....x.x.....x.', s: '....s.......s...', t: '..........t.tttt', h: '..h...h...h...h.' }, drv: 0.95, intro: 2 },
+      basse: 'archet', bmel: ['0 0 0 12 0 0 1 0', '0 0 12 0 1 0 12 1', '0 0 0 12 0 3 1 0', '0 0 12 10 8 7 5 3', '0 12 0 12 1 13 1 13', '0 0 12 0 7 0 1 3', '0 0 4 7 0 4 7 12', '0 1 0 -1 0 1 3 4'],
+      cordes: 0.05, stab: true, cut: 1300,
+      dr: { k: 'x.x.x.x.x.x.x.xx', s: '....s.......s..s', h: 'h.h.h.h.h.h.h.h.', t: '............ttTT' }, drv: 0.85, intro: 1 },
+    // Boss : chœur synthétique, orgue de cuivres, timbales, basse chromatique. Original.
+    boss: { bpm: 120, ton: 38, acc: [[0, 'm'], [1, 'M'], [-2, 'M'], [-1, 'M'], [0, 'm'], [-4, 'M'], [5, 'm'], [7, 'M']], lead: 'cuivre', oct: 24, lv: 0.17,
+      mel: ['0 - - - 1 - 0 -', '5 - - 3 1 - - -', '0 - 3 - 7 - 8 -', '7 - 6 - 7 - - -', '12 - - - 13 - 12 10', '8 - - - 7 - 5 -', '8 - 10 - 12 - 15 -', '14 - - - 11 - 7 -'],
+      basse: 'lourde', bmel: ['0 - 0 - 0 1 0 -', '0 - 0 - 0 -1 0 -', '0 - 0 - 0 1 2 3', '0 - 0 - 0 -1 -2 -3', '0 - 12 - 0 - 12 -', '0 - 0 1 0 - 0 -1', '0 - 3 - 5 - 7 -', '0 - 7 - 0 - -5 -'],
+      choeur: 0.2, cordes: 0.05, padv: 0.06, cut: 1500,
+      dr: { T: 'T.......T...T...', k: 'x.....x.x.....x.', s: '....s.......s...', t: '..........t.tttt', h: '..h...h...h...h.' }, drv: 0.9, intro: 2 },
     marchand: { bpm: 112, ton: 41, acc: [[0, 'M'], [-3, 'm'], [5, 'M'], [7, 'M'], [0, 'M'], [-3, 'm'], [2, 'm'], [7, 'M']], lead: 'marimba', oct: 24, lv: 0.24, swing: 0.2,
       mel: ['0 - 4 7 9 - 7 4', '9 - 12 - 16 - 12 9', '5 - 9 - 12 - 9 5', '7 - 11 - 14 - 12 11', '12 - 9 - 7 - 4 -', '9 - 5 - 4 - 0 -', '2 - 5 - 9 - 7 5', '7 - 11 - 14 - - -'],
       basse: 'pizz', bp: '0...5...o...5...', padv: 0.06, cut: 1200, arp: 'pizz', arpv: 0.06,
@@ -161,11 +194,24 @@ const Son = (() => {
     const temps = 60 / th.bpm, croche = temps / 2, d16 = temps / 4, bar = temps * 4, b = n % 8, cycle = Math.floor(n / 8);
     const ac3 = accord(th, b), rac = ac3[0] - 12;
     const sw = (i) => (th.swing && i % 2 ? d16 * th.swing : 0);
-    if (th.padv) pad(d, t0, th.choeur ? [ac3[0], ac3[1], ac3[2], ac3[0] + 12] : ac3, bar, th.padv, th.cut, th.choeur ? 'sawtooth' : 'triangle');
-    if (th.choeur) voix(d, 'sine', hz(ac3[0] + 12), t0, bar, 0.05, { a: 0.5, vib: 0.006, rev: 0.8, r: 0.6 });
-    // basse
-    const bp = th.bp;
-    for (let i = 0; i < 16; i++) {
+    if (th.padv) pad(d, t0, ac3, bar, th.padv, th.cut, 'triangle');
+    if (th.choeur) [ac3[0], ac3[1], ac3[2]].forEach((m, k) => INSTR.choeur(d, t0, m + (k === 0 ? 0 : 0), bar * 0.98, th.choeur / 3, b % 2 ? 'o' : 'a'));
+    if (th.cordes) {
+      if (th.stab) for (const i of [2, 6, 10, 14]) [ac3[0] + 12, ac3[1] + 12, ac3[2] + 12].forEach((m) => voix(d, 'sawtooth', hz(m), t0 + i * d16, d16 * 0.8, th.cordes * 0.5, { a: 0.008, cut: 2600, cut2: 900, ct: d16, r: 0.05, rev: 0.3 }));
+      else [ac3[0], ac3[1], ac3[2], ac3[0] + 12].forEach((m) => INSTR.cordes(d, t0, m, bar * 0.98, th.cordes));
+    }
+    if (th.harpe) {
+      const H = th.harpe === 'monte' ? [0, 1, 2, 3, 4, 5, 4, 3] : [0, 2, 1, 3, 2, 4, 3, 5];
+      const notes = [ac3[0], ac3[1], ac3[2], ac3[0] + 12, ac3[1] + 12, ac3[2] + 12];
+      for (let i = 0; i < 8; i++) INSTR.harpe(d, t0 + i * croche, notes[H[i]] + 12, croche, th.harpev);
+    }
+    // basse : motif rythmique (bp) ou ligne mouvante en croches (bmel), relative à la fondamentale de l'accord
+    if (th.bmel) {
+      const tk = th.bmel[b].split(' ');
+      for (let i = 0; i < tk.length; i++) { const k = tk[i]; if (k === '-' || k === '.') continue; let len = 1; while (i + len < tk.length && tk[i + len] === '-') len++; BASSE[th.basse](d, t0 + i * croche, rac - 12 + (+k), len * croche * 0.9, 0.3); }
+    }
+    const bp = th.bmel ? '' : th.bp;
+    for (let i = 0; i < bp.length; i++) {
       const c = bp[i]; if (c === '.' || c === '-') continue;
       let len = 1; while (i + len < 16 && bp[i + len] === '-') len++;
       const m = rac - 12 + (c === '5' ? 7 : c === 'o' ? 12 : 0);
@@ -196,7 +242,7 @@ const Son = (() => {
     for (let i = 0; i < toks.length; i++) {
       const k = toks[i]; if (k === '-' || k === '.') continue;
       let len = 1; while (i + len < toks.length && toks[i + len] === '-') len++;
-      const m = th.ton + th.oct + (+k) + (cycle % 2 && b >= 4 && th.lead !== 'cuivre' ? 12 : 0);
+      const m = th.ton + th.oct + (+k) + (cycle % 2 && b >= 4 && !['cuivre', 'piano'].includes(th.lead) ? 12 : 0);
       INSTR[th.lead](d, t0 + i * croche + sw(i * 2), m, len * croche * 0.92, th.lv);
     }
   }
@@ -278,7 +324,13 @@ const Son = (() => {
     const t = ctx.currentTime + 0.02, d = sfxBus;
     if (themeBus) { const g = themeBus.gain; try { g.cancelScheduledValues(t); } catch (e) {} g.setTargetAtTime(0.25, t, 0.05); g.setTargetAtTime(1, t + 1.6, 0.4); }
     journal.push({ sorte: 'stinger', nom: sorte }); if (journal.length > 50) journal.shift();
-    if (sorte === 'victoire') { [[67, 0], [72, 0.12], [76, 0.24], [79, 0.36]].forEach(([m, dt]) => INSTR.cuivre(d, t + dt, m, 0.14, 0.2)); pad(d, t + 0.48, [72, 76, 79, 84], 1.3, 0.3, 2600); timbale(d, t + 0.48, 98, 0.5); }
+    if (sorte === 'victoire') {
+      // V9 : fanfare de victoire originale (quarte puis quinte ascendantes, broderie, tenue majeure) avec glissando de harpe.
+      [[60, 0, 0.1], [65, 0.1, 0.1], [67, 0.2, 0.22], [72, 0.44, 0.1], [71, 0.54, 0.1], [72, 0.64, 0.1], [74, 0.74, 0.22], [76, 0.98, 1.2]].forEach(([m, dt, l]) => INSTR.cuivre(d, t + dt, m, l, 0.2));
+      [64, 67, 72, 76, 79, 84, 88].forEach((m, i) => INSTR.harpe(d, t + 0.98 + i * 0.045, m, 0.3, 0.06));
+      [48, 55, 64].forEach((m) => INSTR.cordes(d, t + 0.98, m, 1.3, 0.18));
+      timbale(d, t + 0.98, 65, 0.5); timbale(d, t, 98, 0.35);
+    }
     else if (sorte === 'defaite') { [[62, 0], [61, 0.45], [60, 0.9], [55, 1.35]].forEach(([m, dt]) => INSTR.cuivre(d, t + dt, m, 0.5, 0.14)); timbale(d, t + 1.35, 55, 0.5); }
     else if (sorte === 'relique') { [0, 4, 7, 11, 14, 19].forEach((s, i) => INSTR.cloche(d, t + i * 0.07, 72 + s, 0.4, 0.1)); bruit(d, t, 0.8, 0.05, { ft: 'highpass', f: 7000, rev: 0.5 }); }
     else if (sorte === 'familier') { [0, 5, 9, 12, 17].forEach((s, i) => INSTR.flute(d, t + i * 0.09, 72 + s, 0.14, 0.12)); }
@@ -294,14 +346,28 @@ const Son = (() => {
     const off = new OfflineAudioContext(2, Math.ceil(sr * sec), sr);
     const sauve = { ctx, master, comp, musBus, sfxBus, reverb, revSend };
     construire(off);
-    const th = T[SCENE[scene] || scene], bus = off.createGain(); bus.connect(musBus); bus.connect(revSend);
-    const bar = (60 / th.bpm) * 4; let t = 0.05, n = 0;
-    while (t < sec - bar) { jouerMesure(th, bus, t, n++); t += bar; }
+    const sauveT = themeBus; themeBus = null;
+    if (options.stinger) { const sv = journal.length; stinger(options.stinger); journal.length = sv; }
+    else {
+      const th = T[SCENE[scene] || scene], bus = off.createGain(); bus.connect(musBus); bus.connect(revSend);
+      const bar = (60 / th.bpm) * 4; let t = 0.05, n = 0;
+      while (t < sec - bar) { jouerMesure(th, bus, t, n++); t += bar; }
+    }
     const r = await off.startRendering();
-    ({ ctx, master, comp, musBus, sfxBus, reverb, revSend } = sauve);
+    ({ ctx, master, comp, musBus, sfxBus, reverb, revSend } = sauve); themeBus = sauveT;
     const g = r.getChannelData(0); let som = 0, crete = 0;
     for (let i = 0; i < g.length; i++) { const a = Math.abs(g[i]); if (a > crete) crete = a; som += g[i] * g[i]; }
-    return { crete, rms: Math.sqrt(som / g.length) };
+    const out = { crete, rms: Math.sqrt(som / g.length) };
+    if (options.wav) { // WAV 16 bits stéréo encodé en base64, pour les extraits MP3 (outils/extraits_musique.py)
+      const L = r.getChannelData(0), R = r.getChannelData(1), n = L.length, buf = new ArrayBuffer(44 + n * 4), v = new DataView(buf);
+      const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+      w(0, 'RIFF'); v.setUint32(4, 36 + n * 4, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 2, true);
+      v.setUint32(24, sr, true); v.setUint32(28, sr * 4, true); v.setUint16(32, 4, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 4, true);
+      for (let i = 0; i < n; i++) { v.setInt16(44 + i * 4, Math.max(-1, Math.min(1, L[i])) * 32767, true); v.setInt16(46 + i * 4, Math.max(-1, Math.min(1, R[i])) * 32767, true); }
+      const u = new Uint8Array(buf); let bin = ''; for (let i = 0; i < u.length; i += 0x8000) bin += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+      out.wav = btoa(bin);
+    }
+    return out;
   }
 
   return { init: debloquer, debloquer, suspendu, etat, volumes, bip, chaine, impact, journal, musique, couper, bascule, stinger, rendreMorceau, estMuet: () => muet, themes: Object.keys(T) };

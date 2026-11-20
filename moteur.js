@@ -18,7 +18,7 @@
   const entre = (run, a, b) => a + ent(run, b - a + 1);
   function melanger(run, arr) { for (let i = arr.length - 1; i > 0; i--) { const j = ent(run, i + 1); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; }
 
-  const SEUILS_XP = [0, 25, 60, 105, 160, 225, 300, 390, 490];
+  const SEUILS_XP = [0, 25, 60, 105, 160, 225, 300, 390, 490, 600, 720, 850];
   const RENOM_NIVEAUX = [0, 80, 200, 360, 560, 800, 1100, 1500, 2000, 2600, 3300];
   const BRASIER = [
     'Aucun malus.',
@@ -31,7 +31,7 @@
     'Ennemis : +30 % de PV au total.',
     'Le brasero soigne 20 % au lieu de 30 %.',
     'Boss : +1 Force.',
-    'Ennemis : +2 dégâts par coup au total.'
+    'Ennemis : +3 dégâts par coup au total et plus de PV à chaque acte. Boss : +30 % PV, puis 1 Force par tour dès le tour 5. Soins réduits de 30 %, or gagné réduit d\'un quart, la Brume ne retient plus que 30 % du coup.'
   ];
 
   // ---------- effets (héritage, talismans, talents) ----------
@@ -57,7 +57,7 @@
     if (d.q) return d.nom + ' ' + '★'.repeat(n + 1);
     return d.nom + (n > 0 ? '+' : '');
   }
-  function cout(inst, c) { const d = def(inst); if (inst.gratuit) return 0; return d.coutV ? d.coutV(vals(inst)) : d.c; }
+  function cout(inst, c) { const d = def(inst); if(c && c.classe==='ysar' && c.rang>=2 && d.t==='S' && !c.sortGratuit && (c.j.st.arcane||0)>=8) return 0; if (inst.gratuit) return 0; return d.coutV ? d.coutV(vals(inst)) : d.c; }
   function coutOr(run, inst) { const d = def(inst); if (!d.or) return 0; return Math.round(d.or * (run.classe === 'nacre' && run.rang >= 3 ? 0.6 : 1)); }
   function nouvelleInst(run, id, niv) { return { u: ++run.uidN, id, niv: niv || 0, q: 0 }; }
   function tribuCompte(run, tr) {
@@ -81,13 +81,17 @@
     opts = opts || {};
     const cl = CLASSES[classe];
     const run = {
-      v: 8, classe, heritage: opts.heritage != null ? opts.heritage : 0, brasier: opts.brasier || 0,
+      v: 9, classe, heritage: opts.heritage != null ? opts.heritage : 0, brasier: opts.brasier || 0,
+      serments: (opts.serments || []).filter((x) => D.SERMENTS[x]), rencontres: [],
       rs: (opts.graine != null ? opts.graine : Math.floor(Math.random() * 2 ** 31)) | 0,
       pvMax: cl.pv, pv: cl.pv, or: 90 + (cl.orDepart || 0), eclats: 1, deck: [], talismans: [], reliques: [], familiers: [], pity: 0, talents: [], rang: 1, niveau: 1, xp: 0,
       niveauxEnAttente: 0, acte: 0, monde: null, bossId: null, carte: null, pos: null, etage: 0, etageTotal: 0,
       ecran: 'carte', combat: null, recompense: null, marchand: null, evenement: null, tresor: null, selection: null, talentChoix: null,
       stats: { tues: 0, degats: 0, tours: 0, elites: 0, boss: 0, cartesJouees: 0 }, uidN: 0, flags: {}, vus: [], journal: [], gagne: false, fini: false
     };
+    if (cl.familierDepart) accueillirFamilier(run, cl.familierDepart);
+    if (eff(run, 'familierDepart2')) accueillirFamilier(run, 'chaton');
+    if (run.serments.includes('orgueil')) { run.pvMax -= 10; run.pv -= 10; }
     cl.depart.forEach((id) => run.deck.push(nouvelleInst(run, id)));
     if (run.brasier >= 5) run.deck.push(nouvelleInst(run, 'suie'));
     const bonusPv = eff(run, 'pvMax'); run.pvMax += bonusPv; run.pv += bonusPv;
@@ -100,50 +104,49 @@
     run.acte = n;
     const a = ACTES[n];
     run.monde = choisir(run, a.mondes);
-    run.bossId = choisir(run, a.boss);
+    run.bossId = choisir(run, a.boss); run.rencontres = []; run.elitesVues = [];
     run.carte = genererCarte(run);
     run.pos = null; run.etage = 0; run.ecran = 'carte'; run.chemin = [];
   }
 
   // ---------- carte ----------
   function genererCarte(run) {
-    const R = 7, COLS = 4;
-    const noeuds = {};
-    const cle = (r, c) => r + '-' + c;
-    const departs = melanger(run, [0, 1, 2, 3]).slice(0, 2);
-    departs.push(ent(run, COLS), ent(run, COLS));
-    departs.forEach((c0) => {
-      let c = c0;
-      for (let r = 0; r < R; r++) {
-        const k = cle(r, c);
-        if (!noeuds[k]) noeuds[k] = { id: k, r, c, type: null, liens: [] };
-        if (r < R - 1) {
-          let nc = Math.max(0, Math.min(COLS - 1, c + choisir(run, [-1, 0, 0, 1])));
-          // évite de croiser un lien existant
-          const croise = Object.values(noeuds).some((n) => n.r === r && n.liens.some((l) => { const [, lc] = l.split('-').map(Number); return (n.c < c && lc > nc) || (n.c > c && lc < nc); }));
-          if (croise) nc = c;
-          const nk = cle(r + 1, nc);
-          if (!noeuds[k].liens.includes(nk)) noeuds[k].liens.push(nk);
-          c = nc;
-        } else noeuds[k].liens = ['boss'];
-      }
+    // 16 lieux avant le boss. Trois voies lisibles et des carrefours :
+    // la voie de gauche préserve les PV, la droite vise les élites et les reliques.
+    const R = 16, noeuds = {}, cle = (r, c) => r + '-' + c;
+    const plan = [
+      ['combat','combat','combat'], ['evenement','combat','combat'],
+      ['combat','combat','evenement'], ['brasero','combat','elite'],
+      ['combat','marchand','combat'], ['evenement','combat','combat'],
+      ['evenement','elite','elite'], ['brasero','marchand','combat'],
+      ['tresor','tresor','tresor'], ['combat','evenement','combat'],
+      ['combat','combat','combat'], ['elite','elite','elite'],
+      ['marchand','evenement','brasero'], ['combat','combat','combat'],
+      ['evenement','combat','combat'], ['brasero','brasero','brasero']
+    ];
+    // Deux élites communes et une troisième facultative au premier tiers.
+    // Le contenu des étapes souples change sans rendre le risque illisible.
+    [2,5,9,13,14].forEach((r) => {
+      const c = ent(run,3); if (plan[r][c] === 'combat' && alea(run)<0.45) plan[r][c] = 'evenement';
     });
-    Object.values(noeuds).forEach((n) => {
-      if (n.r === 0) n.type = 'combat';
-      else if (n.r === 3) n.type = 'tresor';
-      else if (n.r === R - 1) n.type = 'brasero';
+    for(let r=0;r<R;r++) for(let c=0;c<3;c++) {
+      const liens = [];
+      if(r===R-1) liens.push('boss');
       else {
-        const poids = [['combat', 44], ['evenement', 20], ['elite', n.r >= 2 ? 14 : 0], ['marchand', n.r >= 2 ? 11 : 0], ['brasero', n.r >= 2 && n.r <= 4 ? 7 : 0]];
-        const tot = poids.reduce((s, p) => s + p[1], 0);
-        let x = alea(run) * tot;
-        for (const [t, w] of poids) { x -= w; if (x < 0) { n.type = t; break; } }
-        if (!n.type) n.type = 'combat';
+        liens.push(cle(r+1,c));
+        // Carrefours avant les moments importants : retour à une voie sûre possible.
+        if ([0,2,4,5,7,9,10,12,14].includes(r)) {
+          if(c>0) liens.push(cle(r+1,c-1));
+          if(c<2) liens.push(cle(r+1,c+1));
+        }
       }
-      n.liens.sort();
-    });
-    noeuds.boss = { id: 'boss', r: R, c: 1.5, type: 'boss', liens: [] };
-    return { noeuds, rangs: R };
+      noeuds[cle(r,c)]={id:cle(r,c),r,c:c+0.5,type:plan[r][c],liens,
+        voie:['Sécurité','Équilibre','Audace'][c], enflamme:plan[r][c]==='elite' && c===2 && r===11};
+    }
+    noeuds.boss={id:'boss',r:R,c:1.5,type:'boss',liens:[]};
+    return {noeuds,rangs:R};
   }
+
   function choixCarte(run) {
     if (!run.carte) return [];
     if (run.pos == null) return Object.values(run.carte.noeuds).filter((n) => n.r === 0).map((n) => n.id).sort();
@@ -151,16 +154,24 @@
     return n ? n.liens.slice() : [];
   }
 
+  function rencontre(run, pool, elite) {
+    const vus = elite ? (run.elitesVues || []) : (run.rencontres || []);
+    const libres=pool.filter((p)=>!vus.includes(p.join('/')));
+    const p=choisir(run,libres.length?libres:pool);
+    if(elite) run.elitesVues=vus.concat(p.join('/')); else run.rencontres=vus.slice(-3).concat(p.join('/'));
+    return p;
+  }
   function entrerNoeud(run, id) {
     if (!choixCarte(run).includes(id)) return false;
     run.pos = id; run.etage++; run.etageTotal++; run.chemin = (run.chemin || []).concat(id);
     const n = run.carte.noeuds[id];
     const m = MONDES[run.monde];
+    run.flags.enflamme = !!n.enflamme;
     if (n.type === 'combat') {
       const pool = (run.acte === 0 && n.r <= 1 && m.faciles) ? m.faciles : m.normaux;
-      if (run.flags.eliteSuivante) { run.flags.eliteSuivante = false; commencerCombat(run, choisir(run, m.elites), 'elite'); }
-      else commencerCombat(run, choisir(run, pool), 'combat');
-    } else if (n.type === 'elite') commencerCombat(run, choisir(run, m.elites), 'elite');
+      if (run.flags.eliteSuivante) { run.flags.eliteSuivante = false; commencerCombat(run, rencontre(run, m.elites, true), 'elite'); }
+      else commencerCombat(run, rencontre(run, pool, false), 'combat');
+    } else if (n.type === 'elite') commencerCombat(run, rencontre(run, m.elites, true), 'elite');
     else if (n.type === 'boss') commencerCombat(run, [run.bossId], 'boss');
     else if (n.type === 'tresor') {
       run.tresor = { or: Math.round(entre(run, 30, 50) * (1 + eff(run, 'orBonus') / 100)), eclats: 1, cartes: tirerCartes(run, 3 + eff(run, 'choixCartes'), 'tresor'), pris: false, ouvert: false };
@@ -182,10 +193,14 @@
     const d = ENNEMIS[id];
     let pv = entre(run, d.pv[0], d.pv[1]);
     let mult = [1.08, 1.32, 1.48][run.acte] || 1.48; if (run.brasier >= 1) mult += 0.1; if (run.brasier >= 7) mult += 0.2;
+    if (run.brasier >= 10) mult *= (d.boss ? 1.3 : 1.22) * (1 + 0.08 * run.acte);
+    if (run.serments.includes('meute') && !d.boss && !d.elite) mult *= 1.15;
+    if (d.elite && (run.flags.enflamme || run.serments.includes('cendre'))) mult *= 1.25;
     pv = Math.round(pv * mult);
     const e = { u: ++c.uidE, id, nom: d.nom, sprite: d.sprite, pv, pvMax: pv, garde: 0, st: {}, mi: d.alea ? ent(run, d.m.length) : 0, intent: null, dernier: [], invoque: !!invoque,
-      rang: d.boss ? 'boss' : d.elite ? 'elite' : 'normal', bonusDeg: (run.brasier >= 4 ? 1 : 0) + (run.brasier >= 10 ? 1 : 0), vol: 0, tours: 0 };
+      rang: d.boss ? 'boss' : d.elite ? 'elite' : 'normal', bonusDeg: (run.brasier >= 4 ? 1 : 0) + (run.brasier >= 10 ? 2 : 0) + (run.serments.includes('meute') && !d.boss && !d.elite ? 1 : 0), vol: 0, tours: 0 };
     if (d.elite && run.brasier >= 2) e.st.force = 1;
+    if (d.elite && (run.flags.enflamme || run.serments.includes('cendre'))) e.st.force = (e.st.force || 0) + 1;
     if (d.boss && run.brasier >= 9) e.st.force = (e.st.force || 0) + 1;
     const esq = (d.pas || []).find((x) => x[0] === 'esquive'); if (esq && !invoque) e.st.esquive = esq[1];
     return e;
@@ -199,6 +214,8 @@
       e.dernier.unshift(k); e.dernier.length = Math.min(2, e.dernier.length);
       m = d.m[k];
     } else { m = d.m[e.mi % d.m.length]; e.mi++; }
+    if (P(e, 'phase') && e.pv < e.pvMax / 2 && !e.phase) { e.phase = true; e.mi = 0; e.garde += P(e, 'phase'); }
+    if (e.phase && d.m2) { m = d.m2[e.mi % d.m2.length]; e.mi++; }
     if (m.t === 'inv' && vivants(c).length >= 4) m = { t: 'atk', v: 6 };
     e.intent = Object.assign({}, m);
     if (P(e, 'voleur') && e.rang === 'normal' && e.tours >= 3) e.intent = { t: 'fuite' };
@@ -206,10 +223,11 @@
   function vivants(c) { return c.ennemis.filter((e) => e.pv > 0); }
   function ciblesValides(c) { const v = vivants(c); const t = v.filter((e) => P(e, 'provocation')); return t.length ? t : v; }
 
-  const RESS_CLASSE = { solen: 'chaleur', fumee: 'brume', ivra: 'fleches', bram: 'rouages', lierre: 'seve', grenat: 'rage', ossian: 'ames', vesper: 'cadence' };
+  const RESS_CLASSE = { solen: 'chaleur', fumee: 'brume', ivra: 'fleches', bram: 'rouages', lierre: 'seve', grenat: 'rage', ossian: 'ames', vesper: 'cadence', corvine:'marque', basalte:'contre', ysar:'arcane', aubade:'harmonie' };
   function commencerCombat(run, ids, type) {
     const c = { type, ennemis: [], main: [], pioche: [], defausse: [], exil: [], j: { garde: 0, mana: 0, st: {} }, tour: 0, joues: 0, jouesCombat: 0, surch: false, fin: null, ev: [], uidE: 0, uidC: 0, xp: 0, dernier: null,
       reserve: 0, orFin: 0, consumees: 0, typePrec: null, dernierJoue: null, manteau: false };
+    c.classe=run.classe; c.rang=run.rang;
     run.combat = c; run.ecran = 'combat';
     ids.forEach((id) => c.ennemis.push(creerEnnemi(run, c, id)));
     c.pioche = melanger(run, run.deck.map((x) => ({ u: x.u, id: x.id, niv: x.niv })));
@@ -229,17 +247,29 @@
       else if (run.classe === 'nacre') run.or += 10 * rc;
       else if (run.classe === 'fumee') ajSt(c.j, 'brume', 1);
       else if (run.classe === 'vesper') gagnerCadence(run, c, rc);
+      else if (run.classe === 'corvine') c.ennemis.forEach((e) => ajSt(e, 'marque', rc));
       else if (RESS_CLASSE[run.classe]) ajSt(c.j, RESS_CLASSE[run.classe], rc);
     }
     if (run.classe === 'silex' && run.rang >= 3) c.ennemis.forEach((e) => ajSt(e, 'gel', 2));
     if (run.classe === 'ossian' && run.rang >= 2) gagnerAmes(run, c, 2);
-    if (run.classe === 'nacre') { const fo = Math.min(3, Math.floor(run.or / 70)); if (fo) ajSt(c.j, 'force', fo); } if (run.classe === 'nacre') { const g = run.rang >= 2 ? Math.min(15, Math.floor(run.or / 10)) : Math.min(8, Math.floor(run.or / 20)); if (g) gagnerGarde(run, c, g, true); }
+    if (run.classe === 'nacre') { const fo = Math.min(2, Math.floor(run.or / 120)); if (fo) ajSt(c.j, 'force', fo); } if (run.classe === 'nacre') { const g = run.rang >= 2 ? Math.min(15, Math.floor(run.or / 12)) : Math.min(8, Math.floor(run.or / 25)); if (g) gagnerGarde(run, c, g, true); }
     if (run.classe === 'lierre') verifSauvage(run, c);
     (run.familiers || []).forEach((f) => { const s = famStade(f); if (s && s.esquive) ajSt(c.j, 'esquive', s.esquive); });
+    if (eff(run,'marqueDepart')) { const e = plusRobuste(c); if(e) ajSt(e,'marque',eff(run,'marqueDepart')); }
+    if(eff(run,'famDebut')) agirFamiliers(run,c);
     if (type === 'elite') run.stats.elites++;
     debutTour(run, c);
   }
 
+  function gagnerContre(run,c,n) {
+    if(n>0) { const old=c.j.st.contre||0; ajSt(c.j,'contre',Math.min(n,Math.max(0,6-old))); if(run.classe==='basalte' && run.rang>=3) gagnerGarde(run,c,2,true); }
+  }
+  function gagnerHarmonie(run,c,n) {
+    ajSt(c.j,'harmonie',n);
+    if(run.classe!=='aubade') return;
+    const seuil=3-eff(run,'harmonieSeuil');
+    while((c.j.st.harmonie||0)>=seuil) { ajSt(c.j,'harmonie',-seuil); agirFamiliers(run,c); if(c.fin) break; }
+  }
   function ajSt(ent_, s, n) { ent_.st[s] = (ent_.st[s] || 0) + n; if (ent_.st[s] <= 0) delete ent_.st[s]; }
   function stJoueur(run, c, s, n) { if (eff(run, 'immunite') && (s === 'faible' || s === 'expose' || s === 'fragile')) return; ajSt(c.j, s, n); }
   function tailleMain(run) { return Math.max(2, 4 + eff(run, 'mainPlus')); }
@@ -270,6 +300,8 @@
       const s = famStade(f); if (!s || c.fin) return;
       const v = vivants(c); if (!v.length) return;
       c.ev.push({ k: 'famAgit', id: f.id, nom: s.nom });
+      if (run.classe === 'aubade' && run.rang >= 3) gagnerGarde(run,c,2,true);
+      if (run.classe === 'aubade') { const w = vivants(c).sort((a, b) => a.pv - b.pv)[0]; if (w) frapper(run, c, w, run.rang, 'familier'); }
       if (s.k === 'brul') ajSt(choisir(run, v), 'brulure', s.n);
       else if (s.k === 'brulTous') v.forEach((e) => ajSt(e, 'brulure', s.n));
       else if (s.k === 'garde') gagnerGarde(run, c, s.n, true);
@@ -292,21 +324,24 @@
   function debutTour(run, c) {
     c.tour++; run.stats.tours++;
     const gg = eff(run, 'gardeGardee');
-    c.j.garde = gg ? Math.min(gg, c.j.garde) : 0;
-    c.joues = 0; c.surch = false; c.typePrec = null; c.sortTour = false; c.zp = 0; c.coquille = false;
-    c.ennemis.forEach((e) => { e.mueTour = false; });
+    c.j.garde = c.j.st.montagne ? c.j.garde : run.classe==='basalte' && run.rang>=2 ? Math.floor(c.j.garde/2) : gg ? Math.min(gg, c.j.garde) : 0;
+    c.sortAvant = c.sortTour;
+    c.joues = 0; c.surch = false; c.typePrec = null; c.sortTour = false; c.sortGratuit = false; c.zp = 0; c.coquille = false;
+    c.ennemis.forEach((e) => { e.mueTour = false; e.perteTour=0; if (P(e,'ombre')) e.st.esquive=P(e,'ombre'); });
     let mana = 3 + eff(run, 'manaTour') + (c.reserve || 0); c.reserve = 0;
     if (c.tour === 1) mana += eff(run, 'premierTourMana');
     if (run.classe === 'grenat' && run.rang >= 2 && run.pv < run.pvMax / 2) mana += 1;
-    c.j.mana = mana;
+    mana += c.j.st.manaPlus || 0;
+    c.j.mana = Math.max(0,mana - (c.j.st.torpeur||0)); delete c.j.st.torpeur;
+    if(run.classe==='ysar') ajSt(c.j,'arcane',run.rang>=3?3:1);
     if (c.j.st.poison) { perdrePV(run, c, c.j.st.poison, 'poison'); ajSt(c.j, 'poison', -1); if (c.fin) return; }
     effets(run).forEach((ef) => {
       if (ef[0] === 'debutTour') { if (ef[1] === 'garde') gagnerGarde(run, c, ef[2], true); else if (ef[1] === 'seve') gagnerSeve(run, c, ef[2]); else ajSt(c.j, ef[1], ef[2]); }
       if (ef[0] === 'debutTourEnnemiAlea') { const v = vivants(c); if (v.length) ajSt(choisir(run, v), ef[1], ef[2]); }
     });
-    if (run.classe === 'solen' && run.rang >= 3) ajSt(c.j, 'chaleur', 1);
+    if (run.classe === 'solen' && run.rang >= 3 && c.sortAvant) ajSt(c.j, 'chaleur', 1);
     const gpc = eff(run, 'gardeParChaleur'); if (gpc) { const g = 2 * Math.floor((c.j.st.chaleur || 0) / 3); if (g) gagnerGarde(run, c, g, true); }
-    agirFamiliers(run, c);
+    agirFamiliers(run, c); if(c.j.st.opera && !c.fin) agirFamiliers(run,c);
     const dg = eff(run, 'dague'); if (dg) { const w = vivants(c).sort((a, b) => a.pv - b.pv)[0]; if (w) frapper(run, c, w, dg, 'relique'); }
     if (!vivants(c).length) { if (!c.fin) c.fin = 'victoire'; }
     c.main.forEach((x) => { delete x.gratuit; });
@@ -346,9 +381,12 @@
     let dmg = base + (c.j.st.force || 0);
     if (d && d.t === 'L') {
       dmg += eff(run, 'lamePlus') + lienVal(run, 'bete');
-      if (run.classe === 'solen' && run.rang >= 2) dmg += Math.floor((c.j.st.chaleur || 0) / 2);
-      if (run.classe === 'grenat') dmg += Math.min(5, c.j.st.rage || 0);
+      if (run.classe === 'solen' && run.rang >= 2) dmg += Math.floor((c.j.st.chaleur || 0) / 4);
+      if (run.classe === 'grenat') dmg += c.j.st.sansLimite ? (c.j.st.rage||0) : Math.min(5, c.j.st.rage || 0);
+      if (run.classe === 'basalte') dmg += (3+eff(run,'contrePlus'))*(c.j.st.contre||0);
+      if(d.id==='rivet' && c.j.st.grandeforge) dmg *= 2;
     }
+    if(cible && cible.st.marque) { if(c.j.st.nuitrouge) dmg+=cible.st.marque; if(d && d.t==='L') dmg+=(eff(run,'marqueDeg')||0)*cible.st.marque; }
     if (d && d.c === 2) dmg += eff(run, 'coutDeuxPlus');
     if (cible && cible.st.faible) dmg += eff(run, 'bonusFaible');
     if (c.j.st.faible) dmg = Math.floor(dmg * 0.75);
@@ -359,9 +397,11 @@
   function frapper(run, c, e, dmg, source) {
     if (!e || e.pv <= 0) return 0;
     if (e.st.esquive && dmg > 0) { ajSt(e, 'esquive', -1); c.ev.push({ k: 'esquiveE', u: e.u }); return 0; }
+    dmg=Math.max(0,dmg-(P(e,'blinde')||0));
+    const seuil=P(e,'seuil'); if(seuil) dmg=Math.min(dmg,Math.max(0,seuil-(e.perteTour||0)));
     let reste = dmg;
     if (e.garde > 0) { const a = Math.min(e.garde, reste); e.garde -= a; reste -= a; }
-    e.pv -= reste;
+    e.pv -= reste; e.perteTour=(e.perteTour||0)+reste;
     c.ev.push({ k: 'deg', u: e.u, n: reste, bloque: dmg - reste });
     if (!c.sim) { run.stats.degats += reste; progresQuete(run, 'deg', reste); }
     if (source === 'carte' && P(e, 'epines') && e.pv > 0) recevoir(run, c, P(e, 'epines'), null, true);
@@ -383,7 +423,8 @@
     if (!c.sim) { run.stats.tues++; progresQuete(run, 'tue', 1); }
     if (d.boss) run.stats.boss++;
     if (run.classe === 'grenat' && run.rang >= 3) soigner(run, c, 5);
-    if (run.classe === 'nacre') run.or += 8;
+    if (run.classe === 'nacre') run.or += run.brasier >= 10 ? 4 : 6;
+    if(run.classe==='corvine') { c.j.mana++; piocher(run,c,1); if(run.rang>=3 && e.st.marque) { const a=plusRobuste(c); if(a) ajSt(a,'marque',e.st.marque); } }
     const ok = eff(run, 'orKill'); if (ok) run.or += ok;
     const sk = eff(run, 'soinKill'); if (sk) soigner(run, c, sk);
     if (P(e, 'explose')) recevoir(run, c, P(e, 'explose'), null, true);
@@ -403,13 +444,14 @@
     if (!brut) {
       if (c.j.st.esquive) { ajSt(c.j, 'esquive', -1); c.ev.push({ k: 'esquive' }); return 0; }
       if (c.j.st.expose) dmg = Math.floor(dmg * 1.5);
-      if (c.j.st.brume) { ajSt(c.j, 'brume', -1); dmg = Math.floor(dmg / 2); }
+      if (c.j.st.brume) { ajSt(c.j, 'brume', -1); dmg = Math.floor(dmg * (run.brasier >= 10 ? 0.7 : 0.5)); if(c.j.st.brouillard && attaquant && attaquant.pv>0) { ajSt(attaquant,'faible',1); ajSt(attaquant,'expose',1); } }
       const cq = eff(run, 'coquille'); if (cq && !c.coquille && dmg > 0) { c.coquille = true; dmg = Math.max(0, dmg - cq); }
     }
     let reste = dmg;
     if (c.j.garde > 0) { const a = Math.min(c.j.garde, reste); c.j.garde -= a; reste -= a; if (!c.sim && a) progresQuete(run, 'garde', a); }
     c.ev.push({ k: 'touche', n: reste, bloque: dmg - reste });
     if (reste > 0) perdrePV(run, c, reste);
+    if(!brut && attaquant && dmg>0 && reste===0 && run.classe==='basalte') gagnerContre(run,c,1);
     if (attaquant && reste > 0 && P(attaquant, 'vampire') && attaquant.pv > 0) { const h = Math.floor(reste / 2); attaquant.pv = Math.min(attaquant.pvMax, attaquant.pv + h); if (h) c.ev.push({ k: 'vampire', u: attaquant.u, n: h }); }
     if (attaquant && c.j.st.epines && attaquant.pv > 0) frapper(run, c, attaquant, c.j.st.epines, 'epines');
     return reste;
@@ -421,7 +463,7 @@
     if (run.pv <= 0) { run.pv = 0; c.fin = 'defaite'; return; }
     const mt = eff(run, 'manteau'); if (mt && !c.manteau && run.pv < run.pvMax / 2) { c.manteau = true; gagnerGarde(run, c, mt, true); ajSt(c.j, 'esquive', 1); c.ev.push({ k: 'relique', nom: 'Manteau de cendres' }); }
   }
-  function soigner(run, c, n) { const avant = run.pv; run.pv = Math.min(run.pvMax, run.pv + n); if (c) c.ev.push({ k: 'soin', n: run.pv - avant }); return run.pv - avant; }
+  function soigner(run, c, n) { const avant = run.pv; n=run.brasier>=10 ? Math.floor(n*0.7) : n; run.pv = Math.min(run.pvMax, run.pv + n); if (c) c.ev.push({ k: 'soin', n: run.pv - avant }); return run.pv - avant; }
   function degatsEnnemi(run, c, e, base) {
     let d = Math.round(base * ([1.04, 1.14, 1.24][run.acte] || 1.24)) + (e.st.force || 0) + e.bonusDeg;
     if (e.st.faible) d = Math.floor(d * 0.75);
@@ -459,7 +501,7 @@
       garde(n) { gagnerGarde(run, c, n + deux); },
       statut(e, s, n) { if (e && e.pv > 0 && n) ajSt(e, s, statutPlus(s, n)); },
       statutTous(s, n) { vivants(c).forEach((e) => ajSt(e, s, statutPlus(s, n))); },
-      soi(s, n) { if (s === 'esquive' || s === 'brume') { ajSt(c.j, s, n); if (s === 'brume' && n > 0) brumeGagnee(run, c); } else if (s === 'seve') gagnerSeve(run, c, n); else if (s === 'cadence') gagnerCadence(run, c, n); else ajSt(c.j, s, n); },
+      soi(s, n) { if (s === 'esquive' || s === 'brume') { ajSt(c.j, s, n); if (s === 'brume' && n > 0) brumeGagnee(run, c); } else if (s === 'seve') gagnerSeve(run, c, n); else if (s === 'cadence') gagnerCadence(run, c, n); else if(s==='harmonie') gagnerHarmonie(run,c,n); else if(s==='contre') gagnerContre(run,c,n); else ajSt(c.j, s, n); },
       pioche(n) { piocher(run, c, n); },
       mana(n) {
         if (c.surch) { ajSt(c.j, 'force', 1); c.ev.push({ k: 'surcharge' }); if (eff(run, 'surchargePlus')) { piocher(run, c, 1); gagnerGarde(run, c, 4, true); } }
@@ -483,6 +525,19 @@
       seve(n) { gagnerSeve(run, c, n); },
       ame(n) { gagnerAmes(run, c, n); },
       cadence(n) { gagnerCadence(run, c, n); },
+      marquesDe(e) {return e && e.st.marque || 0;},
+      marquer(e,n) {if(e && e.pv>0) ajSt(e,'marque',n);},
+      retirerMarques(e) {if(e) delete e.st.marque;},
+      contre(n) {gagnerContre(run,c,n);},
+      arcane(n) {ajSt(c.j,'arcane',n);},
+      depenserArcane() {const n=c.j.st.arcane||0; delete c.j.st.arcane; return n;},
+      harmonie(n) {gagnerHarmonie(run,c,n);},
+      famAgir(n) {for(let i=0;i<n && !c.fin;i++) agirFamiliers(run,c);},
+      nbFamiliers() {return run.familiers.length;},
+      consumerMain() {const n=c.main.length; c.exil.push(...c.main.filter((m)=>!m.gen)); c.main=[]; c.consumees+=n; return n;},
+      echangerMain(n) {const k=c.main.length; c.defausse.push(...c.main.filter((m)=>!m.gen)); c.main=[]; piocher(run,c,k+n);},
+      reprendre(n) {for(let i=0;i<n && c.defausse.length && c.main.length<8;i++) c.main.push(c.defausse.pop());},
+      purgerSuies() {const v=c.main.filter((m)=>m.id==='suie'); c.main=c.main.filter((m)=>m.id!=='suie'); c.exil.push(...v); c.consumees+=v.length; return v.length;},
       precedent() { return c.typePrec; },
       jouesTour() { return c.joues; },
       orFin(n) { c.orFin += n; },
@@ -507,8 +562,8 @@
   }
   function ajouterRouages(run, c, n) {
     ajSt(c.j, 'rouages', n);
-    while ((c.j.st.rouages || 0) >= 4) {
-      ajSt(c.j, 'rouages', -4);
+    while ((c.j.st.rouages || 0) >= 5) {
+      ajSt(c.j, 'rouages', -5);
       if (c.main.length < 8) { c.main.push({ u: 'g' + (++c.uidC), id: 'rivet', niv: run.rang >= 2 ? 1 : 0, gen: true }); c.ev.push({ k: 'rivet' }); }
     }
   }
@@ -536,6 +591,7 @@
     c.ev = [];
     c.j.mana -= k;
     if (ko) { run.or -= ko; c.ev.push({ k: 'paie', n: ko }); }
+    if(d.t==='S') c.sortGratuit=true;
     c.main.splice(i, 1);
     delete inst.gratuit;
     let fois = 1;
@@ -552,14 +608,20 @@
     }
     // compétences de classe
     const cl = run.classe;
+    if(cl==='basalte' && d.t==='L') delete c.j.st.contre;
+    if(cl==='corvine' && d.t==='L') { if(d.cib==='tous') vivants(c).forEach((e)=>ajSt(e,'marque',1)); else if(cible && cible.pv>0) ajSt(cible,'marque',1); }
+    if(cl==='aubade' && d.t==='S') gagnerHarmonie(run,c,1);
+    if(c.j.st.arbremonde) ajSt(c.j,'epines',1);
     if (cl === 'solen' && d.t === 'S') ajSt(c.j, 'chaleur', 1);
     if (cl === 'fumee' && c.joues === (run.rang >= 3 ? 2 : 3)) { ajSt(c.j, 'brume', 1); brumeGagnee(run, c); c.ev.push({ k: 'brume' }); }
     if (cl === 'silex' && d.t === 'L' && !d.sansGel) { if (d.cib === 'tous') vivants(c).forEach((e) => ajSt(e, 'gel', 1)); else if (cible && cible.pv > 0) ajSt(cible, 'gel', 1); }
     if (cl === 'ivra' && (d.t === 'L' || (run.rang >= 3 && d.t === 'S'))) ajSt(c.j, 'fleches', 1);
     if (cl === 'bram' && !inst.gen) ajouterRouages(run, c, run.rang >= 3 && d.tr === 'forge' ? 2 : 1);
     if (cl === 'lierre') { gagnerSeve(run, c, 1); if (run.rang >= 2 && d.t === 'S') ajSt(c.j, 'epines', 1); }
-    if (cl === 'vesper' && c.typePrec && c.typePrec !== d.t) gagnerCadence(run, c, 1);
+    if (cl === 'vesper' && c.typePrec && c.typePrec !== d.t) gagnerCadence(run, c, c.j.st.tempo ? 2 : 1);
     if (d.t === 'S') {
+      if(c.j.st.soleil) { const e=plusRobuste(c); if(e) frapper(run,c,e,Math.min(8,c.j.st.chaleur||0),'soleil'); }
+      vivants(c).forEach((e)=>{if(P(e,'hainesort')) ajSt(e,'force',P(e,'hainesort'));});
       const sg = eff(run, 'sortGarde'); if (sg) gagnerGarde(run, c, sg, true);
       if (!c.sim) progresQuete(run, 'sort', 1);
       const sd = eff(run, 'sortDeg'); if (sd) { const vv = vivants(c); if (vv.length) frapper(run, c, choisir(run, vv), sd, 'relique'); }
@@ -591,9 +653,10 @@
   function finTour(run, c) {
     if (!c || c.fin) return;
     c.ev = [];
-    if (run.classe === 'ivra') { decocher(run, c); delete c.j.st.fleches; }
+    if (run.classe === 'ivra') { decocher(run, c); if(!c.j.st.carquoisSans) delete c.j.st.fleches; }
     if (eff(run, 'gardeRiposte') && c.j.garde >= 2) { const v = vivants(c); if (v.length) frapper(run, c, choisir(run, v), Math.floor(c.j.garde / 2), 'relique'); }
     if (c.fin === 'victoire') { if (!c.sim) finCombat(run); return; }
+    if(run.classe==='ysar') ajSt(c.j,'arcane',c.j.mana*(c.j.st.singularite ? 3 : 2));
     const rm = eff(run, 'reserveMana'); if (rm) c.reserve = Math.min(rm, c.j.mana);
     if (c.j.st.brulure) { perdrePV(run, c, c.j.st.brulure); ajSt(c.j, 'brulure', -1); }
     ['faible', 'expose', 'fragile'].forEach((s) => { if (c.j.st[s]) ajSt(c.j, s, -1); });
@@ -612,6 +675,7 @@
       if (c.fin === 'defaite') break;
       if (e.pv > 0 && e.st.brulure) { frapper(run, c, e, e.st.brulure, 'brulure'); ajSt(e, 'brulure', -1); }
       if (e.pv > 0 && P(e, 'regen')) e.pv = Math.min(e.pvMax, e.pv + P(e, 'regen'));
+      if(e.pv>0 && e.rang==='boss' && run.brasier>=10 && c.tour>=5) ajSt(e,'force',1);
       if (e.pv > 0 && P(e, 'colere')) ajSt(e, 'force', P(e, 'colere'));
       ['faible', 'expose'].forEach((s) => { if (e.st[s]) ajSt(e, s, -1); });
       if (c.fin) break;
@@ -633,6 +697,7 @@
     const apresCoup = () => {
       const vo = P(e, 'voleur'); if (vo && run.or > 0) { const n = Math.min(vo, run.or); run.or -= n; e.vol += n; c.ev.push({ k: 'vol', u: e.u, n }); }
       if (P(e, 'fragilise')) stJoueur(run, c, 'fragile', 1);
+      if(P(e,'torpeur')) stJoueur(run,c,'torpeur',1);
     };
     const debuff = (s, n) => {
       if (s === 'suie') { for (let i = 0; i < n; i++) c.defausse.push({ u: 's' + (++c.uidC), id: 'suie', niv: 0, gen: false, temp: true }); c.ev.push({ k: 'suie', n }); }
@@ -669,8 +734,9 @@
   }
   function tauxTirage(run, source) {
     const t = Object.assign({}, TAUX[source] || TAUX.combat);
-    if (source !== 'boss') { const p = Math.min(12, run.pity || 0); t.R += p; t.C = Math.max(0, t.C - p); }
+    if(source!=='boss') { const p=Math.min(10,run.pity||0), delta=Math.min(t.C, p*4); t.C-=delta; t.R+=delta*0.65; t.E+=delta*0.25; t.L+=delta*0.10; }
     if (eff(run, 'oeil')) { t.R *= 1.6; t.E *= 1.8; t.L *= 2.2; }
+    const total=Object.values(t).reduce((a,b)=>a+b,0); Object.keys(t).forEach((k)=>t[k]=100*t[k]/total);
     return t;
   }
   function tirerRarete(run, t) {
@@ -693,8 +759,20 @@
       if (!cands.length) continue;
       out.push(choisir(run, cands).id);
     }
-    if (source !== 'boss') { if (out.some((id) => 'REL'.includes(CARTES[id].r))) run.pity = 0; else run.pity = (run.pity || 0) + 1; }
     return out;
+  }
+  function tirerLegendaires(run,n) {
+    const disponibles=poolCartes(run).filter((d)=>d.r==='L');
+    melanger(run,disponibles);
+    const classe=disponibles.find((d)=>d.cl===run.classe), neutres=disponibles.filter((d)=>!d.cl);
+    const offre=classe ? [classe.id] : [];
+    neutres.forEach((d)=>{if(offre.length<n) offre.push(d.id);});
+    // Il reste toujours au moins 3 légendaires neutres après les 3 boss.
+    return melanger(run,offre);
+  }
+  function fortuneChoix(run,id) {
+    if(id && 'REL'.includes(CARTES[id].r)) run.pity=0;
+    else run.pity=Math.min(10,(run.pity||0)+(!id?2:CARTES[id].r==='C'?1:0));
   }
   function tirerReliques(run, n, src) {
     const libres = Object.keys(RELIQUES).filter((t) => RELIQUES[t].src === src && !(run.reliques || []).includes(t));
@@ -707,7 +785,7 @@
     RELIQUES[id].eff.forEach((e) => { if (e[0] === 'pvMax') { run.pvMax += e[1]; run.pv += e[1]; } });
     return true;
   }
-  function equipeMax(run) { return 2 + (eff(run, 'familierPlus') ? 1 : 0); }
+  function equipeMax(run) { return 2 + (run.classe==='aubade' && run.rang>=2?1:0) + (eff(run, 'familierPlus') ? 1 : 0); }
   function offreFamilier(run) {
     const tenus = (run.familiers || []).map((f) => f.id);
     const libres = Object.keys(FAMILIERS).filter((k) => !tenus.includes(k));
@@ -722,7 +800,7 @@
   function evoluerFamiliers(run) {
     const evs = [];
     (run.familiers || []).forEach((f) => {
-      f.combats = (f.combats || 0) + (eff(run, 'familierPlus') ? 2 : 1);
+      f.combats = (f.combats || 0) + (eff(run, 'familierPlus') || (run.classe==='aubade' && run.rang>=2) ? 2 : 1);
       const seuils = [3, 7];
       if (!f.evo && (f.stade || 0) < 2 && f.combats >= seuils[f.stade || 0]) { f.evo = (f.stade || 0) + 1; evs.push({ id: f.id, stade: f.evo, choix: true }); }
     });
@@ -766,10 +844,10 @@
     const c = run.combat; if (!c || run.recompense) return;
     const type = c.type;
     const orBase = type === 'boss' ? entre(run, 70, 90) : type === 'elite' ? entre(run, 26, 36) : entre(run, 11, 18);
-    const or = Math.round(orBase * (1 + eff(run, 'orBonus') / 100));
+    const or = Math.round(orBase * (1 + eff(run, 'orBonus') / 100 + (run.serments.includes('meute')?0.2:0)) * (run.brasier >= 10 ? 0.75 : 1));
     const eclats = type === 'boss' ? 3 : type === 'elite' ? entre(run, 1, 2) : (alea(run) < 0.25 ? 1 : 0);
     run.or += or; run.eclats += eclats;
-    run.or += (c.orFin || 0) + eff(run, 'orFinCombat') + (run.classe === 'nacre' ? 10 : 0);
+    run.or += (c.orFin || 0) + eff(run, 'orFinCombat') + (run.classe === 'nacre' ? (run.brasier >= 10 ? 4 : 10) : 0);
     if (type === 'elite' && eff(run, 'bonusElite')) { run.or += 20; run.eclats += 1; }
     let soin = eff(run, 'finCombatSoin') + lienVal(run, 'luciole');
     if (eff(run, 'soinRage')) soin += (c.j.st.rage || 0) * eff(run, 'soinRage');
@@ -782,8 +860,8 @@
     }
     run.recompense = {
       type, or, eclats, xp, soin, niveaux: run.niveau - niveauAvant,
-      cartes: tirerCartes(run, 3 + eff(run, 'choixCartes'), type), cartePrise: false,
-      reliquesChoix: type === 'boss' ? tirerReliques(run, 3, 'B') : type === 'elite' ? tirerReliques(run, 2, 'E') : null, reliquePrise: false,
+      cartes: type==='boss' ? tirerLegendaires(run,run.serments.includes('orgueil')?4:3) : tirerCartes(run,3+eff(run,'choixCartes')+(run.serments.includes('jeune')?1:0),run.flags.enflamme?'feu':type), cartePrise: false,
+      reliquesChoix: type === 'boss' ? tirerReliques(run, 3, 'B') : type === 'elite' ? tirerReliques(run, run.flags.enflamme || run.serments.includes('cendre') ? 3 : 2, 'E') : null, reliquePrise: false,
       evos: evoluerFamiliers(run), familier: null, familierPris: false
     };
     const chanceF = type === 'elite' ? 0.4 : type === 'combat' ? 0.12 : 0;
@@ -796,7 +874,7 @@
   function prendreCarte(run, id) {
     const r = run.recompense || run.tresor || run.evenement;
     if (!r || r.cartePrise || !r.cartes || !r.cartes.includes(id)) return false;
-    run.deck.push(nouvelleInst(run, id, CARTES[id].r === 'C' && eff(run, 'communeAffutee') ? 1 : 0)); r.cartePrise = true; return true;
+    run.deck.push(nouvelleInst(run, id, CARTES[id].r === 'C' && eff(run, 'communeAffutee') ? 1 : 0)); r.cartePrise = true; fortuneChoix(run,id); return true;
   }
   function choisirRelique(run, id) {
     const r = run.recompense; if (!r || !r.reliquesChoix || r.reliquePrise || !r.reliquesChoix.includes(id)) return false;
@@ -807,11 +885,12 @@
     if (!accueillirFamilier(run, r.familier, remplace)) return false;
     r.familierPris = true; return true;
   }
-  function passerCarte(run) { const r = run.recompense; if (!r || r.cartePrise) return false; r.cartePrise = true; r.passee = true; run.or += 8; return true; }
+  function passerCarte(run) { const r = run.recompense; if (!r || r.cartePrise) return false; r.cartePrise = true; r.passee = true; run.or += 8; fortuneChoix(run,null); return true; }
   function quitterRecompense(run) {
     const r = run.recompense; if (!r) return false;
     if (evolutionsEnAttente(run).length) return false; // V8 : choisir la voie d'évolution d'abord
     const boss = r.type === 'boss';
+    if(!r.cartePrise) passerCarte(run);
     run.recompense = null;
     if (run.niveauxEnAttente > 0) { preparerTalents(run); run.apresNiveau = boss ? 'boss' : 'carte'; run.ecran = 'niveau'; return; }
     apresCombat(run, boss);
@@ -853,9 +932,9 @@
     t.ouvert = true; run.or += t.or; run.eclats += t.eclats;
   }
   function quitterEcran(run) { run.tresor = null; run.marchand = null; run.evenement = null; run.brasero = null; run.selection = null; run.ecran = 'carte'; }
-  function soinBrasero(run) { return Math.round(run.pvMax * ((run.brasier >= 8 ? 20 : 30) + eff(run, 'soinRepos')) / 100); }
+  function soinBrasero(run) { return Math.round(run.pvMax * Math.max(0,(run.brasier >= 8 ? 20 : 30) + eff(run,'soinRepos')-(run.serments.includes('jeune')?10:0)) / 100); }
   function braseroFait(run, k) { const b = run.brasero; b.faits = (b.faits || []).concat(k); if (b.faits.length >= 1 + (eff(run, 'braseroDouble') ? 1 : 0)) b.fait = k; }
-  function braseroSoigner(run) { if (!run.brasero || run.brasero.fait) return false; run.pv = Math.min(run.pvMax, run.pv + soinBrasero(run)); braseroFait(run, 'soin'); return true; }
+  function braseroSoigner(run) { if (!run.brasero || run.brasero.fait) return false; soigner(run,null,soinBrasero(run)); braseroFait(run, 'soin'); return true; }
   function braseroMediter(run) {
     if (!run.brasero || run.brasero.fait) return false;
     braseroFait(run, 'mediter'); gagnerXp(run, 20); return true;
@@ -865,7 +944,7 @@
     while (run.niveau < SEUILS_XP.length && run.xp >= SEUILS_XP[run.niveau]) { run.niveau++; run.pvMax += 4; run.pv = Math.min(run.pvMax, run.pv + 4); run.niveauxEnAttente++; }
   }
   function affutable(inst) { const d = def(inst); return (inst.niv || 0) < niveauMax(d) && d.r !== 'M'; }
-  function demanderSelection(run, mode, retour) { run.selection = { mode, retour }; run.ecranAvant = run.ecran; run.ecran = 'selection'; }
+  function demanderSelection(run, mode, retour) { if(run.selection && run.ecran==='selection') { (run.selectionsEnAttente=run.selectionsEnAttente||[]).push({mode,retour}); return; } run.selection = { mode, retour }; run.ecranAvant = run.ecran; run.ecran = 'selection'; }
   function annulerSelection(run) {
     const s = run.selection; if (!s) return;
     if (s.retour === 'marchand' && run.marchand && run.marchand.services[s.mode]) { run.or += prixService(run, s.mode); run.marchand.services[s.mode] = false; }
@@ -883,6 +962,7 @@
     run.dernierSelection = { mode: s.mode, id: inst.id, nouveau: s.mode === 'transformer' ? run.deck[i].id : null };
     run.ecran = run.ecranAvant || 'carte'; run.selection = null;
     if (s.retour === 'brasero' && run.brasero) braseroFait(run, 'affuter');
+    if(run.selectionsEnAttente && run.selectionsEnAttente.length) { const n=run.selectionsEnAttente.shift(); demanderSelection(run,n.mode,n.retour); }
     return true;
   }
 
@@ -919,7 +999,7 @@
     if (k === 'rang' && run.rang >= 3) return false;
     if (run.or < p) return false;
     run.or -= p; m.services[k] = true;
-    if (k === 'soin') run.pv = Math.min(run.pvMax, run.pv + Math.round(run.pvMax * 0.3));
+    if (k === 'soin') soigner(run,null,Math.round(run.pvMax*0.3));
     else if (k === 'pvmax') { run.pvMax += 4; run.pv += 4; }
     else if (k === 'rang') run.rang++;
     else demanderSelection(run, k, 'marchand');
@@ -941,10 +1021,11 @@
     const ev = evenementDef(run); if (!ev || run.evenement.fait != null) return false;
     const ch = ev.choix[k]; if (!ch || !choixPossible(run, ch)) return false;
     run.evenement.fait = k; run.evenement.resultat = [];
-    const res = run.evenement.resultat;
+    const res = run.evenement.resultat; run.selectionsEnAttente=[];
     ch.eff.forEach((e) => {
       const [t, n] = e;
-      if (t === 'pv') { if (n < 0) run.pv = Math.max(1, run.pv + n); else run.pv = Math.min(run.pvMax, run.pv + n); res.push((n > 0 ? '+' : '') + n + ' PV'); }
+      if(t==='fortune') {run.pity=Math.min(10,(run.pity||0)+n);res.push('Fortune : '+run.pity+'/10');}
+      else if (t === 'pv') { if (n < 0) run.pv = Math.max(1, run.pv + n); else run.pv = Math.min(run.pvMax, run.pv + n); res.push((n > 0 ? '+' : '') + n + ' PV'); }
       else if (t === 'pvMax') { run.pvMax = Math.max(10, run.pvMax + n); run.pv = Math.max(1, Math.min(run.pvMax, run.pv + n)); res.push((n > 0 ? '+' : '') + n + ' PV max'); }
       else if (t === 'relique') { const id = tirerReliques(run, 1, 'E')[0]; if (id && gagnerRelique(run, id)) res.push('Relique : ' + RELIQUES[id].nom); else { run.or += 60; res.push('+60 or'); } }
       else if (t === 'suies') { for (let i = 0; i < n; i++) run.deck.push(nouvelleInst(run, 'suie')); res.push(n + ' Suie' + (n > 1 ? 's' : '') + ' dans ton paquet'); }
@@ -978,7 +1059,7 @@
     const c2 = JSON.parse(JSON.stringify(c)); c2.sim = true;
     return [r2, c2];
   }
-  const POIDS_ST = { echo: 7, cadence: 1.8, ardeur: 9, chaleur: 1.6, fleches: 2.2, seve: 0.7, rage: 1.2, ames: 2.2, brume: 3, esquive: 6, epines: 1.6, robustesse: 3, force: 4, rouages: 1 };
+  const POIDS_ST = { echo: 7, cadence: 1.8, ardeur: 9, chaleur: 1.6, fleches: 2.2, seve: 0.7, rage: 1.2, ames: 2.2, brume: 3, esquive: 6, epines: 1.6, robustesse: 3, force: 4, rouages: 1, contre:3.2,arcane:1.7,harmonie:2.4,nuitrouge:6,montagne:12,singularite:6,opera:10,soleil:10,brouillard:8,carquoisSans:10,grandeforge:8,arbremonde:9,sansLimite:7,tempo:10,manaPlus:10 };
   function score(run, c, entrants) {
     if (c.fin === 'victoire') return 1e5 + run.pv * 10;
     if (c.fin === 'defaite') return -1e5;
@@ -986,7 +1067,7 @@
     vivants(c).forEach((e) => {
       s -= e.pv + e.garde * 0.4;
       s -= (e.st.esquive || 0) * 7 + (e.st.force || 0) * 2.5 + (e.st.epines || 0) * 0.8;
-      s += (e.st.brulure || 0) * 0.9 + (e.st.poison || 0) * 0.9 + (e.st.gel || 0) * (run.classe === 'silex' ? 2.2 : 1.2) + (e.st.faible || 0) * 1.8 + (e.st.expose || 0) * 2;
+      s += (e.st.brulure || 0) * 0.9 + (e.st.poison || 0) * 0.9 + (e.st.gel || 0) * (run.classe === 'silex' ? 2.2 : 1.2) + (e.st.faible || 0) * 1.8 + (e.st.expose || 0) * 2 + (e.st.marque||0)*2.5;
     });
     s += 14 * c.ennemis.filter((e) => e.pv <= 0).length;
     const inc = degatsEntrants(run, c);
@@ -1048,7 +1129,7 @@
     const out = {}; ciblesValides(c).forEach((e) => { const a = apercu(run, c, i, e.u); if (a) out[e.u] = a; });
     return out;
   }
-  const NOMS_ST = { brulure: 'Brûlure', poison: 'Poison', gel: 'Gel', faible: 'Faiblesse', expose: 'Exposé', force: 'Force', chaleur: 'Chaleur', fleches: 'Flèche', seve: 'Sève', rage: 'Rage', ames: 'Âme', brume: 'Brume', esquive: 'Esquive', epines: 'Épine', robustesse: 'Robustesse', rouages: 'Rouage', cadence: 'Cadence', echo: 'Écho', ardeur: 'Ardeur' };
+  const NOMS_ST = { brulure: 'Brûlure', poison: 'Poison', gel: 'Gel', faible: 'Faiblesse', expose: 'Exposé', force: 'Force', chaleur: 'Chaleur', fleches: 'Flèche', seve: 'Sève', rage: 'Rage', ames: 'Âme', brume: 'Brume', esquive: 'Esquive', epines: 'Épine', robustesse: 'Robustesse', rouages: 'Rouage', contre:'Contre',arcane:'Arcane',harmonie:'Harmonie',marque:'Marque', cadence: 'Cadence', echo: 'Écho', ardeur: 'Ardeur' };
   function raisonCoup(run, c, coup) {
     const a = apercu(run, c, coup.i, coup.u); if (!a) return '';
     const vals = Object.values(a.ennemis);
@@ -1134,19 +1215,169 @@
     return { k: null, txt: 'Garde ton or : rien ici ne change ton paquet.' };
   }
 
+  // ---------- V9 : chemin planifié (programmation dynamique sur la carte) ----------
+  // Estimation grossière, volontairement lisible : un combat coûte des PV, une élite beaucoup plus,
+  // un brasero soigne, un trésor et une élite rapportent. Le plan cherche la suite de lieux qui maximise la valeur
+  // sans passer sous zéro PV estimés. Sert au joueur automatique, au Mentor et au Conseiller.
+  const COUT_PV = { combat: 0.11, elite: 0.24, boss: 0.35, evenement: 0.03, marchand: 0, tresor: 0, brasero: -0.3 };
+  function valeurLieu(run, n, hp) {
+    const enfl = n.enflamme ? 2 : 0;
+    switch (n.type) {
+      case 'combat': return 1.2;
+      case 'elite': return 3.4 + enfl;
+      case 'tresor': return 2.6;
+      case 'evenement': return 1.3;
+      case 'marchand': return Math.min(3, run.or / 70) + (run.deck.some((x) => x.id === 'suie') ? 0.8 : 0);
+      case 'brasero': return hp < 0.55 ? 3.2 : hp < 0.8 ? 1.6 : 0.9;
+      default: return 0;
+    }
+  }
+  function planChemin(run, depuis) {
+    const N = run.carte.noeuds, memo = {};
+    const pas = (id, hp) => {
+      const n = N[id]; const h = Math.round(Math.max(0, Math.min(1, hp)) * 20);
+      const k = id + ':' + h; if (memo[k]) return memo[k];
+      const apres = Math.min(1, hp - (COUT_PV[n.type] || 0) * (run.brasier >= 6 ? 1.15 : 1));
+      if (n.type === 'boss') return (memo[k] = { v: apres > 0 ? 6 : -40, chemin: [id] });
+      if (apres <= 0.02) return (memo[k] = { v: -40 - (n.r || 0), chemin: [id] });
+      let best = null;
+      n.liens.forEach((l) => { const r = pas(l, apres); if (!best || r.v > best.v) best = r; });
+      const risque = apres < 0.3 ? (0.3 - apres) * 12 : 0;
+      return (memo[k] = { v: valeurLieu(run, n, hp) - risque + (best ? best.v : 0), chemin: [id].concat(best ? best.chemin : []) });
+    };
+    return (depuis || choixCarte(run)).map((id) => Object.assign({ id }, pas(id, run.pv / run.pvMax)));
+  }
+  function resumeChemin(run, chemin) {
+    const N = run.carte.noeuds, t = { elite: 0, brasero: 0, marchand: 0, tresor: 0, evenement: 0, combat: 0 };
+    chemin.forEach((id) => { const n = N[id]; if (t[n.type] != null) t[n.type]++; });
+    return t;
+  }
+  // Départage les chemins de même valeur par ce que la voie apporte si tu y restes (selon tes PV).
+  function noteVoie(run, id) {
+    const N = run.carte.noeuds, n = N[id]; if (!n || n.type === 'boss') return 0;
+    const hp = run.pv / run.pvMax, t = resumeChemin(run, Object.values(N).filter((m) => m.c === n.c && m.r >= n.r && m.type !== 'boss').map((m) => m.id));
+    return t.elite * (hp > 0.75 ? 1.5 : hp > 0.5 ? 0 : -2) + t.brasero * (hp < 0.6 ? 1.5 : 0.3) + t.tresor + t.marchand * Math.min(1, run.or / 150);
+  }
+  function plansTries(run) { return planChemin(run).map((p) => Object.assign(p, { note: p.v + 0.1 * noteVoie(run, p.id) })).sort((a, b) => b.note - a.note); }
+  const NOM_LIEU = { combat: 'combat', elite: 'élite', brasero: 'brasero', marchand: 'marchand', tresor: 'trésor', evenement: 'événement', boss: 'boss' };
+  function conseilChemin(run) {
+    if (run.ecran !== 'carte' || !run.carte) return null;
+    const plans = plansTries(run);
+    if (!plans.length) return null;
+    const p = plans[0], N = run.carte.noeuds, n = N[p.id];
+    const voie = n.type === 'boss' ? [] : Object.values(N).filter((m) => m.c === n.c && m.r >= n.r && m.type !== 'boss').map((m) => m.id);
+    const t = resumeChemin(run, voie);
+    const hp = Math.round(100 * run.pv / run.pvMax);
+    const L = NOM_LIEU[n.type][0].toUpperCase() + NOM_LIEU[n.type].slice(1);
+    if (n.type === 'boss') return { id: p.id, txt: `Boss : ${hp} % de PV, joue tes meilleures cartes en premier.` };
+    const pourquoi = n.type === 'elite' && hp >= 70 ? `tu as ${hp} % de PV, l'élite paie une relique`
+      : n.type === 'brasero' ? `tu es à ${hp} % de PV` : n.type === 'marchand' ? `tu as ${run.or} or à dépenser` : n.type === 'tresor' ? 'une relique gratuite'
+      : n.c > 2 ? `tu as ${hp} % de PV : vise le butin de la voie Audace` : n.c < 1 ? (hp < 60 ? `garde tes PV (${hp} %), cette voie a des braseros` : 'avance sans risque, cette voie a des braseros') : 'un peu de butin sans trop de risque';
+    return { id: p.id, txt: `${L} (voie ${n.voie}) : ${pourquoi}. Si tu y restes : ${t.elite} élite${t.elite > 1 ? 's' : ''} et ${t.brasero} brasero${t.brasero > 1 ? 's' : ''} jusqu'au boss.` };
+  }
+
+  // ---------- V9 : le Conseiller compare les options, sans décider à ta place ----------
+  function conseillerChemin(run) {
+    if (!run.carte) return null;
+    const plans = plansTries(run); if (!plans.length) return null;
+    const N = run.carte.noeuds, meilleurId = plans[0].id;
+    plans.sort((a, b) => run.carte.noeuds[a.id].c - run.carte.noeuds[b.id].c);
+    const hp = run.pv / run.pvMax;
+    return {
+      titre: 'Chemins possibles',
+      options: plans.map((p) => {
+        const n = N[p.id];
+        // ce que donne la voie si tu y restes jusqu'au boss (les carrefours permettent d'en changer)
+        const voie = n.type === 'boss' ? [p.id] : Object.values(N).filter((m) => m.c === n.c && m.r >= n.r && m.type !== 'boss').sort((x, y) => x.r - y.r).map((m) => m.id);
+        const t = resumeChemin(run, voie);
+        const pour = [], contre = [];
+        if (t.elite) pour.push(`${t.elite} élite${t.elite > 1 ? 's' : ''} : reliques et cartes rares`); if (t.tresor) pour.push(`${t.tresor} trésor`);
+        if (t.brasero) pour.push(`${t.brasero} brasero${t.brasero > 1 ? 's' : ''} pour souffler`); if (t.marchand) pour.push(`${t.marchand} marchand${t.marchand > 1 ? 's' : ''}`);
+        if (voie.some((id) => N[id].enflamme)) pour.push('passe par l\'élite enflammée (3 reliques)');
+        if (t.elite >= 2 && hp < 0.7) contre.push(`${t.elite} élites avec ${Math.round(hp * 100)} % de PV`);
+        if (t.brasero <= 1) contre.push(t.brasero ? 'un seul brasero avant le boss' : 'aucun brasero avant le boss');
+        if (t.elite <= 1) contre.push('peu de butin : ton paquet grandira moins');
+        if (t.combat >= 7) contre.push(`${t.combat} combats : beaucoup d'usure`);
+        const risque = t.elite * 2 + t.combat * 0.4 - t.brasero * 1.5 + (hp < 0.5 ? 2 : 0);
+        const nomL = NOM_LIEU[n.type];
+        return { id: p.id, nom: `${nomL[0].toUpperCase() + nomL.slice(1)}${n.voie ? ' (voie ' + n.voie + ')' : ''}`, suite: voie.slice(0, 5).map((id) => NOM_LIEU[N[id].type]), pour, contre, risque: risque >= 5 ? 'élevé' : risque >= 2.5 ? 'moyen' : 'faible', meilleur: p.id === meilleurId };
+      })
+    };
+  }
+  function prosCarte(run, id) {
+    const d = CARTES[id], pour = [], contre = [];
+    if (d.cl === run.classe) pour.push('nourrit ta mécanique de classe');
+    if (d.tr) { const n = tribuCompte(run, d.tr); const l = liens(run).find((x) => x.tribu === d.tr); pour.push(`${TRIBUS[d.tr].nom} : ${n + 1} en paquet${l && l.prochain && l.prochain - n === 1 ? ', active un lien' : ''}`); }
+    if (d.c === 0) pour.push('gratuite');
+    if (d.cib === 'tous') pour.push('touche tous les ennemis'); else if (d.cib === 'e' && run.acte >= 1) contre.push('une seule cible face aux groupes');
+    if (d.exil) contre.push('se consume : une fois par combat');
+    if (d.c >= 2) contre.push(`coûte ${d.c} mana`);
+    if (d.r === 'L' || d.r === 'E') pour.push(RARETES[d.r].nom.toLowerCase());
+    const dbl = run.deck.filter((x) => x.id === id).length; if (dbl) contre.push(`déjà ${dbl} en paquet`);
+    const lames = run.deck.filter((x) => def(x).t === 'L').length;
+    if (d.t === 'L' && lames > run.deck.length * 0.65) contre.push('ton paquet a déjà beaucoup de Lames');
+    if (d.t === 'S' && lames < run.deck.length * 0.35) contre.push('ton paquet manque déjà de dégâts');
+    if (run.deck.length >= 20) contre.push(`dilue un paquet de ${run.deck.length} cartes`);
+    return { pour, contre };
+  }
+  function conseillerCartes(run, ids) {
+    if (!ids || !ids.length) return null;
+    const tri = ids.map((id) => ({ id, s: valeurCarte(run, id) }));
+    const max = Math.max(...tri.map((x) => x.s));
+    const options = tri.map((x) => Object.assign({ id: x.id, nom: CARTES[x.id].nom, meilleur: x.s === max && !(run.deck.length >= 24 && x.s < 2.6) }, prosCarte(run, x.id)));
+    const p = run.pity || 0;
+    options.push({ id: null, nom: 'Passer (+8 or)', pour: ['garde ton paquet fin : tes meilleures cartes reviennent plus vite', `jauge de fortune ${Math.min(10, p + 2)}/10 : plus de rares ensuite`], contre: ['aucune nouvelle carte'], meilleur: run.deck.length >= 24 && max < 2.6 });
+    return { titre: 'Comparer les cartes', options };
+  }
+  function conseillerMarchand(run) {
+    const m = run.marchand; if (!m) return null;
+    const options = [];
+    m.cartes.forEach((o, i) => { if (o.vendu) return; const pc = prosCarte(run, o.id); if (run.or < o.prix) pc.contre.unshift(`il te manque ${o.prix - run.or} or`); options.push(Object.assign({ k: 'c' + i, nom: `${CARTES[o.id].nom} (${o.prix} or)`, s: valeurCarte(run, o.id) - (run.or < o.prix ? 9 : 0) }, pc)); });
+    if (!m.services.retirer) options.push({ k: 'sretirer', nom: `Retirer une carte (${prixService(run, 'retirer')} or)`, pour: ['affine le paquet : tes combos sortent plus souvent'].concat(run.deck.some((x) => x.id === 'suie') ? ['enlève une Suie'] : []), contre: run.or < prixService(run, 'retirer') ? ['pas assez d\'or'] : [], s: (run.deck.some((x) => x.id === 'suie') ? 3.4 : run.deck.length >= 14 ? 2.5 : 1.2) - (run.or < prixService(run, 'retirer') ? 9 : 0) });
+    if (!m.services.soin) options.push({ k: 'ssoin', nom: `Soin (${prixService(run, 'soin')} or)`, pour: [`tu es à ${run.pv}/${run.pvMax} PV`], contre: run.pv / run.pvMax > 0.7 ? ['tu as encore de la marge'] : [], s: (run.pv / run.pvMax < 0.45 ? 4 : 0.6) - (run.or < prixService(run, 'soin') ? 9 : 0) });
+    if (run.rang < 3 && !m.services.rang) options.push({ k: 'srang', nom: `Rang ${run.rang + 1} de compétence (${prixService(run, 'rang')} or)`, pour: [CLASSES[run.classe].comp.rangs[run.rang]], contre: run.or < prixService(run, 'rang') ? ['pas assez d\'or'] : ['cher'], s: 3.8 - (run.or < prixService(run, 'rang') ? 9 : 0) });
+    options.push({ k: null, nom: 'Garder ton or', pour: ['plus de choix au prochain marchand'], contre: ['l\'or ne sert à rien au boss'], s: 1 });
+    options.sort((a, b) => b.s - a.s); const max = options[0].s;
+    return { titre: 'Comparer les achats', options: options.slice(0, 5).map((o) => Object.assign(o, { meilleur: o.s === max })) };
+  }
+  function conseillerCombat(run) {
+    const c = run.combat; if (!c || c.fin) return null;
+    const base = score(run, c), coups = [];
+    c.main.forEach((inst, i) => {
+      if (!peutJouer(run, c, i)) return;
+      const cibles = besoinCible(inst) ? ciblesValides(c).map((e) => e.u) : [null];
+      cibles.forEach((u) => {
+        const a = apercu(run, c, i, u); if (!a) return;
+        const [r2, c2] = cloner(run, c); jouerCarte(r2, c2, i, u);
+        const vals = Object.values(a.ennemis), deg = vals.reduce((s, e) => s + e.deg + e.gardePerdue, 0), g = a.heros.garde1 - a.heros.garde0;
+        const pour = [], contre = [];
+        if (a.victoire) pour.push('gagne le combat');
+        const morts = vals.filter((e) => e.mort && !e.releve); if (morts.length) pour.push('achève ' + morts.map((e) => e.nom).join(' et '));
+        if (deg) pour.push(`${deg} dégâts`); if (g) pour.push(`${g} garde`);
+        const entr = a.heros.entrants0, couvre = Math.max(0, Math.min(a.heros.garde1, entr) - Math.min(a.heros.garde0, entr));
+        if (entr > a.heros.garde1 && !a.victoire) contre.push(`tu prendras encore ${entr - a.heros.garde1} dégâts`);
+        if (a.heros.mana1 === 0 && c.main.length > 2) contre.push('vide ton mana');
+        if (def(inst).exil) contre.push('se consume');
+        if (a.heros.pv1 < a.heros.pv0) contre.push(`coûte ${a.heros.pv0 - a.heros.pv1} PV`);
+        coups.push({ i, u, nom: nomCarte(inst) + (u != null ? ' sur ' + c.ennemis.find((e) => e.u === u).nom : ''), s: score(r2, c2) - base, pour, contre, couvre });
+      });
+    });
+    coups.sort((a, b) => b.s - a.s);
+    const top = coups.slice(0, 3);
+    const inc = degatsEntrants(run, c);
+    top.push({ i: -1, nom: 'Finir le tour', pour: c.j.mana ? [] : ['plus de mana de toute façon'], contre: inc > c.j.garde ? [`${inc - c.j.garde} dégâts à encaisser`] : [], s: 0.3 });
+    const max = Math.max(...top.map((x) => x.s));
+    return { titre: 'Comparer les coups', options: top.map((o) => Object.assign(o, { meilleur: o.s === max })) };
+  }
+
   const RANG_IA = ['echoforge', 'horloge', 'carapace', 'phenix', 'grimoirenoir', 'ancre', 'chaudron', 'oeil', 'pacte', 'lanterneetroite',
     'gardelame', 'pierreetincelle', 'dague', 'herisson', 'braseropoche', 'etincelle', 'coquille', 'poudre', 'manteau', 'calice', 'sablierinverse', 'rouet',
     'dynamo', 'tambour', 'cloche', 'spore', 'faux', 'lunette', 'gantelet', 'encrier', 'urnevide', 'banniere', 'flute', 'mechelente', 'lanterneveille',
     'trefle', 'aimant', 'carnet', 'sifflet', 'pageblanche', 'oeufbraise'];
   function iaCarte(run) {
-    const choix = choixCarte(run).map((id) => run.carte.noeuds[id]);
-    const ratio = run.pv / run.pvMax;
+    const plans = planChemin(run);
     let best = null;
-    choix.forEach((n) => {
-      let s = { combat: 3, elite: ratio > 0.7 ? 4.5 : ratio > 0.5 ? 1 : -3, brasero: ratio < 0.5 ? 7 : ratio < 0.75 ? 3 : 0.5, marchand: run.or >= 100 ? 5 : 0.5, tresor: 5, evenement: 2.6, boss: 10 }[n.type] || 0;
-      s += alea(run) * 1.5;
-      if (!best || s > best.s) best = { id: n.id, s };
-    });
+    plans.forEach((p) => { const s = p.v + alea(run) * 1.2; if (!best || s > best.s) best = { id: p.id, s }; });
     return best && best.id;
   }
   function valeurCarte(run, id) {
@@ -1156,6 +1387,10 @@
     if (d.cl === run.classe) s += 1.4;
     if (d.tr) s += 0.45 * tribuCompte(run, d.tr);
     if (d.q) s += 0.6;
+    if (d.id==='purge' && run.deck.some((x)=>x.id==='suie')) s+=1.4;
+    if (d.id==='recyclage' && run.deck.some((x)=>def(x).r==='L')) s+=1.5;
+    if (d.id==='echange' && run.deck.length>=18) s+=1.2;
+    if(d.id==='fourberie' && ['fumee','corvine','ivra'].includes(run.classe)) s+=1.0;
     const doublons = run.deck.filter((x) => x.id === id).length; s -= doublons * 0.8;
     return s;
   }
@@ -1232,7 +1467,7 @@
       }
       case 'recompense': {
         const r = run.recompense;
-        const id = iaRecompense(run, r.cartes); if (id) prendreCarte(run, id);
+        const id = iaRecompense(run, r.cartes); if (id) prendreCarte(run, id); else passerCarte(run);
         noterTele(run, 'c', r.cartes, id);
         if (r.reliquesChoix && r.reliquesChoix.length) { const best = conseilRelique(run, r.reliquesChoix).id; choisirRelique(run, best); noterTele(run, 'r', r.reliquesChoix, best); }
         if (r.familier && run.familiers.length < equipeMax(run)) prendreFamilier(run);
@@ -1261,7 +1496,7 @@
         if (run.evenement.fait == null) {
           let k = iaEvenement(run, ev);
           choisirEvenement(run, k);
-          if (run.ecran === 'selection') iaSelection(run);
+          while (run.ecran === 'selection') iaSelection(run);
           if (run.evenement && run.evenement.cartes && !run.evenement.cartePrise) { const id = iaRecompense(run, run.evenement.cartes); if (id) prendreCarte(run, id); }
         }
         quitterEcran(run); return true;
@@ -1275,12 +1510,12 @@
     run.tele = { c: {}, r: {}, joue: {} };
     let garde = 0;
     while (!run.fini && garde++ < 5000) { if (!iaEcran(run)) break; }
-    return { gagne: run.gagne, mort: run.fini && !run.gagne, acte: run.acte + 1, etage: run.etageTotal, niveau: run.niveau, tours: run.stats.tours, pv: run.pv, deckFinal: run.deck.map((x) => x.id), talismans: run.talismans.slice(), reliques: run.reliques.slice(), familiers: run.familiers.map((f) => f.id + ':' + f.stade), talents: run.talents.slice(), bloque: !run.fini, renom: renomGagne(run), tele: run.tele };
+    return { gagne: run.gagne, mort: run.fini && !run.gagne, acte: run.acte + 1, etage: run.etageTotal, niveau: run.niveau, tours: run.stats.tours, pv: run.pv, deckFinal: run.deck.map((x) => x.id), talismans: run.talismans.slice(), reliques: run.reliques.slice(), familiers: run.familiers.map((f) => f.id + ':' + f.stade), talents: run.talents.slice(), bloque: !run.fini, elites: run.stats.elites, renom: renomGagne(run), tele: run.tele };
   }
 
   // ---------- méta (renom) ----------
   function renomGagne(run) {
-    return run.etageTotal * 4 + run.stats.tues * 2 + run.stats.elites * 10 + run.stats.boss * 30 + (run.gagne ? 100 + run.brasier * 15 : 0);
+    return (run.serments||[]).reduce((n,id)=>n+(D.SERMENTS[id].renom||0)*Math.max(1,run.stats.boss),0)+run.etageTotal * 4 + run.stats.tues * 2 + run.stats.elites * 10 + run.stats.boss * 30 + (run.gagne ? 100 + run.brasier * 15 : 0);
   }
   function niveauRenom(renom) { let n = 1; RENOM_NIVEAUX.forEach((s, i) => { if (renom >= s) n = i + 1; }); return n; }
   function classesDebloquees(meta) {
@@ -1313,7 +1548,7 @@
   }
 
   const M = {
-    D, alea, SEUILS_XP, RENOM_NIVEAUX, BRASIER,
+    D, alea, SEUILS_XP, RENOM_NIVEAUX, BRASIER, planChemin, conseilChemin, conseillerChemin, conseillerCartes, conseillerMarchand, conseillerCombat, tirerLegendaires,
     nouvelleCourse, choixCarte, entrerNoeud, jouerCarte, finTour, peutJouer, besoinCible, vivants, intentAffiche, degatsEntrants,
     apercu, apercuCibles, raisonCoup, conseilCombat, conseilCartes, conseilRelique, conseilMarchand, degatsEntrants,
     evolutionsEnAttente, choisirEvolution, forcerEvolution, evoluerFamiliers, iaEvenement, valeurChoix, iaVoie, evenementPossible,

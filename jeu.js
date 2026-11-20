@@ -1,14 +1,14 @@
-/* Braises V8 : interface (pixel art, tactile iPhone : on sélectionne une carte, on voit l'aperçu exact, puis on confirme). */
+/* Braises V9 : interface (pixel art, tactile iPhone : on sélectionne une carte, on voit l'aperçu exact, puis on confirme). */
 (function () {
   const M = window.BraisesMoteur, D = M.D, PIX = window.PIX || {}, ART = window.ART || { cartes: {}, reliques: {} };
-  const CLE_META = 'braises8-meta', CLE_PARTIE = 'braises8-partie';
+  const CLE_META = 'braises9-meta', CLE_PARTIE = 'braises9-partie';
   const app = document.getElementById('app');
   const $ecran = document.getElementById('ecran');
   const lire = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
-  let meta = Object.assign({ renom: 0, courses: 0, victoires: 0, parClasse: {}, toutDebloque: false, mentor: true, volMusique: 0.8, volEffets: 0.9 }, lire(CLE_META, null) || lire('braises7-meta', null) || lire('braises6-meta', {}));
+  let meta = Object.assign({ renom: 0, courses: 0, victoires: 0, parClasse: {}, toutDebloque: false, mentor: true, conseiller: true, volMusique: 0.8, volEffets: 0.9 }, lire(CLE_META, null) || lire('braises8-meta', null) || lire('braises7-meta', null) || lire('braises6-meta', {}));
   let run = lire(CLE_PARTIE, null);
-  if (run && run.v !== 8) run = null;
-  const ui = { ecran: 'titre', sel: null, selCible: null, selNoeud: null, classe: null, heritage: 0, brasier: 0, voile: null, info: null, choix: null, verrou: false, abandon: false, banniere: null, evoSel: null, evoAnim: null, element: 'impact' };
+  if (run && run.v !== 9) run = null;
+  const ui = { ecran: 'titre', sel: null, selCible: null, selNoeud: null, classe: null, heritage: 0, brasier: 0, serments: [], voile: null, info: null, choix: null, verrou: false, abandon: false, banniere: null, evoSel: null, evoAnim: null, element: 'impact' };
 
   function sauver() {
     if (run && !run.fini) localStorage.setItem(CLE_PARTIE, JSON.stringify(run)); else localStorage.removeItem(CLE_PARTIE);
@@ -53,8 +53,8 @@
   }
 
   // ---------- statuts ----------
-  const COURT = { cadence: 'Cad', echo: 'Écho', ardeur: 'Ard', vol: 'Vol', force: 'For', robustesse: 'Rob', faible: 'Faib', expose: 'Exp', brulure: 'Brûl', poison: 'Pois', gel: 'Gel', epines: 'Épi', brume: 'Brume', esquive: 'Esq', chaleur: 'Chal', fleches: 'Flè', seve: 'Sève', rage: 'Rage', ames: 'Âmes', rouages: 'Roua', sauvage: 'Sauvage', fragile: 'Frag' };
-  const RESS = ['chaleur', 'fleches', 'seve', 'rage', 'ames', 'rouages', 'cadence', 'echo'];
+  const COURT = { cadence: 'Cad', echo: 'Écho', ardeur: 'Ard', vol: 'Vol', force: 'For', robustesse: 'Rob', faible: 'Faib', expose: 'Exp', brulure: 'Brûl', poison: 'Pois', gel: 'Gel', epines: 'Épi', brume: 'Brume', esquive: 'Esq', chaleur: 'Chal', fleches: 'Flè', seve: 'Sève', rage: 'Rage', ames: 'Âmes', rouages: 'Roua', sauvage: 'Sauvage', fragile: 'Frag', marque: 'Marq', contre: 'Contre', arcane: 'Arc', harmonie: 'Harm', torpeur: 'Torp', nuitrouge: 'Nuit', montagne: 'Mont', singularite: 'Sing', opera: 'Opéra', soleil: 'Soleil', brouillard: 'Brouil', carquoisSans: 'Carq', grandeforge: 'Forge', arbremonde: 'Arbre', sansLimite: 'Rage∞', tempo: 'Tempo', manaPlus: 'Mana+' };
+  const RESS = ['chaleur', 'fleches', 'seve', 'rage', 'ames', 'rouages', 'cadence', 'echo', 'contre', 'arcane', 'harmonie'];
   function statutsHTML(st) {
     return Object.entries(st).filter(([, n]) => n).map(([k, n]) => {
       const def = D.STATUTS[k] || {};
@@ -217,17 +217,26 @@
     const xa = M.SEUILS_XP[run.niveau - 1] || 0, xb = M.SEUILS_XP[run.niveau] || xa + 1;
     const pct = run.niveau >= M.SEUILS_XP.length ? 100 : Math.round(100 * (run.xp - xa) / (xb - xa));
     return `<div class="hud">
-      ${spr(cl.sprite, 1.2, { fixe: true })}
+      ${spr(cl.sprite, 0.9, { fixe: true })}
       <span class="stat pv">${ico('i-coeur')} <b class="num">${run.pv}/${run.pvMax}</b></span>
       <span class="stat orv">${ico('i-or')} <b class="num">${run.or}</b></span>
       <span class="stat ecl">${ico('i-eclat')} <b class="num">${run.eclats}</b></span>
       <span class="niv">Niv. <b class="num">${run.niveau}</b><span class="barre"><i style="width:${pct}%"></i></span></span>
+      ${fortuneHTML(true)}
       <span class="vide"></span>
       <button class="btn" data-a="voile" data-p="deck">Paquet <b class="num">${run.deck.length}</b></button>
       <button class="btn" data-a="voile" data-p="sac">Sac</button>
       <button class="btn" data-a="titre" aria-label="Menu">≡</button>
     </div>`;
   }
+
+  // V9 : jauge de fortune, discrète : chaque récompense commune ou passée la fait monter, une rare la remet à zéro.
+  function fortuneHTML(mini) {
+    const p = Math.min(10, run.pity || 0);
+    if (mini) return `<span class="fortune-mini" title="Jauge de fortune ${p}/10" aria-label="Jauge de fortune ${p} sur 10"><i style="height:${p * 10}%"></i></span>`;
+    return `<div class="fortune"><span>Fortune</span><span class="fortune-barre">${Array.from({ length: 10 }, (_, i) => `<i class="${i < p ? 'on' : ''}"></i>`).join('')}</span><span class="muet">${p ? '+' + p * 4 + ' % de chances hors communes' : 'rares remises à zéro'}</span></div>`;
+  }
+  function conseillerBouton(ctx) { return meta.conseiller ? `<button class="btn petit conseiller-btn" data-a="conseiller" data-p="${ctx}">Comparer</button>` : ''; }
 
   // ----- titre -----
   function rendreTitre() {
@@ -237,7 +246,7 @@
     const pct = niv >= M.RENOM_NIVEAUX.length ? 100 : Math.round(100 * ((meta.renom || 0) - a) / (b - a));
     const heros = Object.entries(D.CLASSES).map(([k, c]) => `<div class="h ${deb.includes(k) ? '' : 'verrou'}">${spr(c.sprite, 2.6)}<span>${deb.includes(k) ? c.nom : '?'}</span></div>`).join('');
     return `<div class="titre">
-      <div class="centre"><div class="logo">BRAISES</div><div class="sous-logo">V8 · deckbuilder roguelike en pixel art</div></div>
+      <div class="centre"><div class="logo">BRAISES</div><div class="sous-logo">V9 · deckbuilder roguelike en pixel art</div></div>
       <div class="col" style="align-items:center">
         <div class="parade-heros">${heros}</div>
         <div class="feu-titre">${ico('i-feu', 3)}</div>
@@ -250,6 +259,7 @@
         ${run && !run.fini ? `<button class="btn petit" data-a="abandon">${ui.abandon ? 'Toucher encore pour abandonner' : 'Abandonner la course'}</button>` : ''}
         <div class="bascules">
           <button class="bascule ${meta.mentor ? 'on' : ''}" data-a="mentor">Mentor ${meta.mentor ? 'oui' : 'non'}</button>
+          <button class="bascule ${meta.conseiller ? 'on' : ''}" data-a="conseillerBascule">Conseiller ${meta.conseiller ? 'oui' : 'non'}</button>
           <button class="bascule ${meta.toutDebloque ? 'on' : ''}" data-a="tout">Tout débloqué ${meta.toutDebloque ? 'oui' : 'non'}</button>
           <button class="bascule" data-a="voile" data-p="options">Son et options</button>
         </div>
@@ -273,7 +283,7 @@
     if (ui.brasier > bmax) ui.brasier = bmax;
     const tuiles = Object.entries(D.CLASSES).map(([id, c]) => {
       const ok = deb.includes(id);
-      return `<button class="tuile ${id === k ? 'sel' : ''} ${ok ? '' : 'verrou'}" data-a="classe" data-p="${id}">${spr(c.sprite, 2.2, { fixe: !ok || id !== k })}<span>${ok ? c.nom : 'Renom ' + c.renom}</span></button>`;
+      return `<button class="tuile ${id === k ? 'sel' : ''} ${ok ? '' : 'verrou'}" data-a="classe" data-p="${id}">${spr(c.sprite, 2.2, { fixe: !ok || id !== k })}<span>${ok ? c.nom : 'Renom ' + c.renom}</span><small class="arch">${esc(c.archetype || '')}</small></button>`;
     }).join('');
     const conds = ['Disponible', 'Atteindre l\'acte 2 avec ' + cl.nom, 'Gagner une course avec ' + cl.nom];
     const her = cl.heritages.map((h, i) => `<button class="${i === ui.heritage ? 'sel' : ''} ${herDeb.includes(i) ? '' : 'verrou'}" data-a="heritage" data-p="${i}"><b>${esc(h.nom)}</b>${herDeb.includes(i) ? esc(h.txt) : esc(conds[i])}</button>`).join('');
@@ -283,12 +293,13 @@
       <div class="defile grand">
         <div class="grille-classes">${tuiles}</div>
         <div class="fiche-classe">
-          <div class="ligne">${spr(cl.sprite, 4)}<div class="col" style="gap:3px"><h2 style="color:${cl.couleur}">${cl.nom}</h2><span class="muet">${esc(cl.titre)} · ${cl.pv} PV</span><span style="font-size:13px">${esc(cl.resume)}</span></div></div>
+          <div class="ligne">${spr(cl.sprite, 4)}<div class="col" style="gap:3px"><h2 style="color:${cl.couleur}">${cl.nom}</h2><span class="muet">${esc(cl.titre)} · ${cl.pv} PV · ${esc(cl.archetype || '')}</span><span style="font-size:13px">${esc(cl.resume)}</span></div></div>
           <div class="panneau col" style="gap:5px"><h3>Compétence : ${esc(cl.comp.nom)}</h3>${cl.comp.rangs.map((r, i) => `<div class="rang"><b>Rang ${i + 1}</b><span>${esc(r)}</span></div>`).join('')}<span class="muet">Les rangs 2 et 3 s'achètent chez le marchand.</span></div>
           <div class="muet">Départ : ${Object.entries(depart).map(([id, n]) => n + '× ' + D.CARTES[id].nom).join(', ')}</div>
           <h3>Héritage</h3><div class="choix-ligne">${her}</div>
           <h3>Brasier ${ui.brasier}</h3><div class="brasier-sel">${bra}</div>
           <div class="muet">${esc(M.BRASIER.slice(1, ui.brasier + 1).join(' ') || M.BRASIER[0])}</div>
+          <h3>Serments (défis facultatifs)</h3><div class="choix-ligne serments">${Object.entries(D.SERMENTS).map(([id, s]) => `<button class="${ui.serments.includes(id) ? 'sel' : ''}" data-a="serment" data-p="${id}"><b>${esc(s.nom)}</b>${esc(s.txt)} <span class="num">+${s.renom} renom</span></button>`).join('')}</div>
         </div>
       </div>
       <div class="pied"><button class="btn prim" data-a="partir">Partir avec ${cl.nom}</button></div>`;
@@ -306,7 +317,7 @@
   };
   function rendreCarte() {
     const c = run.carte, choix = M.choixCarte(run), chemin = run.chemin || [];
-    const LIG = 88, H = (c.rangs + 1) * LIG + 40;
+    const LIG = 84, H = (c.rangs + 1) * LIG + 40;
     const y = (n) => (c.rangs - n.r) * LIG + 50;
     const x = (n) => n.id === 'boss' ? 50 : (n.c + 0.5) * 25;
     let lignes = '';
@@ -319,18 +330,22 @@
     const boss = D.ENNEMIS[run.bossId];
     const noeuds = Object.values(c.noeuds).map((n) => {
       const t = NOEUDS[n.type];
-      const st = [chemin.includes(n.id) ? 'passe' : '', choix.includes(n.id) ? 'ouvert' : '', ui.selNoeud === n.id ? 'sel' : '', run.pos === n.id ? 'ici' : '', n.type === 'boss' ? 'boss' : ''].join(' ');
+      const st = [chemin.includes(n.id) ? 'passe' : '', choix.includes(n.id) ? 'ouvert' : '', ui.selNoeud === n.id ? 'sel' : '', run.pos === n.id ? 'ici' : '', n.type === 'boss' ? 'boss' : '', n.enflamme ? 'enflamme' : '', n.type].join(' ');
       const inner = n.type === 'boss' ? spr(boss.sprite, 1.6, { fixe: true }) : ico(t[0]);
       return `<button class="noeud ${st}" style="left:${x(n)}%;top:${y(n)}px" data-a="noeud" data-p="${n.id}" aria-label="${t[1]}">${inner}</button>`;
     }).join('');
     let fiche;
     if (ui.selNoeud && choix.includes(ui.selNoeud)) {
       const n = c.noeuds[ui.selNoeud], t = NOEUDS[n.type];
-      fiche = `<div class="txt"><b>${n.type === 'boss' ? esc(boss.nom) : t[1]}</b>${n.type === 'boss' ? 'Le gardien de ' + esc(D.MONDES[run.monde].nom) + '. Une carte rare et une relique de boss au choix.' : t[2]}</div><button class="btn prim" data-a="aller">Y aller</button>`;
-    } else fiche = `<div class="txt"><b>Où aller ?</b>Touche un lieu qui brille, puis confirme.</div>`;
+      fiche = `<div class="txt"><b>${n.type === 'boss' ? esc(boss.nom) : n.enflamme ? 'Élite enflammée' : t[1]}${n.voie ? ` <span class="voie v-${n.c}">${n.voie}</span>` : ''}</b>${n.type === 'boss' ? 'Le gardien de ' + esc(D.MONDES[run.monde].nom) + '. Trois cartes légendaires et une relique de boss au choix.' : n.enflamme ? 'Plus forte (+25 % PV, +1 Force), mais trois reliques au choix et des cartes bien plus rares.' : t[2]}</div><button class="btn prim" data-a="aller">Y aller</button>`;
+    } else fiche = `<div class="txt"><b>Où aller ?</b>Gauche : Sécurité. Centre : Équilibre. Droite : Audace (élites, butin).</div>`;
+    const etape = run.pos && c.noeuds[run.pos] ? Math.min(c.rangs + 1, c.noeuds[run.pos].r + 2) : 1;
+    const mc = meta.mentor ? M.conseilChemin(run) : null;
     const leg = ['combat', 'elite', 'tresor', 'marchand', 'evenement', 'brasero'].map((k) => `<span>${ico(NOEUDS[k][0])} ${NOEUDS[k][1]}</span>`).join('');
     return `${hud()}
-      ${relBarre()}<div class="carte-titre"><h2>${esc(D.MONDES[run.monde].nom)}</h2><span class="muet">Acte ${run.acte + 1}/3 · Brasier ${run.brasier} · Rang ${run.rang}</span></div>
+      ${relBarre()}<div class="carte-titre"><h2>${esc(D.MONDES[run.monde].nom)}</h2><span class="muet">Acte ${run.acte + 1}/3 · étape ${etape}/${c.rangs + 1} · Brasier ${run.brasier}</span></div>
+      <div class="boss-annonce">${spr(boss.sprite, 1, { fixe: true })}<span>Boss de l'acte : <b>${esc(boss.nom)}</b></span>${fortuneHTML(false)}</div>
+      ${mc ? `<div class="ligne-conseils">${mentorLigne(mc.txt)}${conseillerBouton('chemin')}</div>` : meta.conseiller ? `<div class="ligne-conseils">${conseillerBouton('chemin')}</div>` : ''}
       <div class="legende">${leg}</div>
       <div class="carte-zone"><div class="carte-int" style="height:${H}px"><svg viewBox="0 0 100 ${H}" preserveAspectRatio="none">${lignes}</svg>${noeuds}</div></div>
       <div class="fiche-bas">${fiche}</div>`;
@@ -377,13 +392,13 @@
   }
   function echelleHeros(cle) {
     const p = PIX[cle] || { h: 24 }, sc = dimScene();
-    return Math.max(3.4, Math.min(7, (sc.h * 0.27) / p.h, (sc.w * 0.24) / (p.w || 16)));
+    return Math.max(3, Math.min(7, (sc.h * 0.27) / p.h, (sc.w * 0.24) / (p.w || 16)));
   }
   function echelleEnnemi(e, nE) {
     const d = D.ENNEMIS[e.id], p = PIX[e.sprite] || { w: 16, h: 16 }, sc = dimScene();
     const zoneW = sc.w * 0.6 / Math.max(1, nE);
     // boss : 1,8 à 2 fois la taille de la V7 (4,6), dans la limite de la scène
-    if (d.boss) return Math.max(4.6, Math.min(9, (sc.h * 0.56) / p.h, (sc.w * (nE > 1 ? 0.6 / nE : 0.7)) / p.w));
+    if (d.boss) return Math.max(4.6, Math.min(9, (sc.h * 0.56) / p.h, (sc.w * (nE > 1 ? 0.6 / nE : 0.66)) / p.w));
     const cible = d.elite ? 0.3 : 0.24;
     return Math.max(2.6, Math.min(nE >= 3 ? 4.6 : 6.4, (sc.h * cible) / p.h, (zoneW * 0.8) / p.w));
   }
@@ -479,7 +494,7 @@
         ${detail}
         <div class="main">${main}</div>
         <div class="actions">
-          <button class="btn bleu" data-a="conseil">Conseil</button>
+          <button class="btn bleu" data-a="conseil">Conseil</button>${meta.conseiller ? '<button class="btn violet" data-a="conseiller" data-p="combat">Comparer</button>' : ''}
           <button class="btn ${selInst ? 'prim' : 'off'}" data-a="jouer">Jouer</button>
           <button class="btn ${conseil === -1 ? 'conseil-fin' : ''}" data-a="fin">Fin du tour</button>
         </div>
@@ -517,15 +532,16 @@
     } else if (r.familier && r.familierPris) fam = '<div class="muet centre">Un nouveau familier te suit.</div>';
     const evos = '';
     const cc = !r.cartePrise ? M.conseilCartes(run, r.cartes) : null;
+    const leg = r.type === 'boss';
     const cartes = r.cartePrise ? `<div class="muet centre">${r.passee ? 'Carte passée : +8 or.' : 'Carte ajoutée à ton paquet.'}</div>` : `${cc ? mentorLigne(cc.txt) : ''}<div class="cartes-choix">${r.cartes.map((id) => carteHTML({ id, niv: 0, u: 'r' + id }, { cls: [ui.choix === id ? 'sel' : '', cc && cc.id === id && meta.mentor ? 'conseil' : ''].join(' '), attrs: `data-a="choixCarte" data-p="${id}"` })).join('')}</div>
-      ${ui.choix && D.CARTES[ui.choix] ? `<button class="btn prim" style="width:100%" data-a="prendre">Prendre ${esc(D.CARTES[ui.choix].nom)}</button>` : `<div class="ligne" style="justify-content:center"><span class="muet">Touche une carte, puis confirme.</span><button class="btn petit" data-a="passerCarte">Passer (+8 or)</button></div>`}`;
+      ${ui.choix && D.CARTES[ui.choix] ? `<button class="btn prim" style="width:100%" data-a="prendre">Prendre ${esc(D.CARTES[ui.choix].nom)}</button>` : `<div class="ligne" style="justify-content:center"><span class="muet">Touche une carte, puis confirme.</span>${conseillerBouton('cartes')}<button class="btn petit" data-a="passerCarte">Passer (+8 or)</button></div>`}`;
     const t = M.tauxTirage(run, r.type);
-    const taux = `<div class="taux">${['C', 'P', 'R', 'E', 'L'].filter((k) => t[k] > 0).map((k) => `<span class="r-${k}">${D.RARETES[k].nom} ${Math.round(t[k] * 10) / 10} %</span>`).join('')}</div>`;
+    const taux = leg ? '<div class="taux"><span class="r-L">Récompense de boss : 3 légendaires garanties</span></div>' : `${fortuneHTML(false)}<div class="taux">${['C', 'P', 'R', 'E', 'L'].filter((k) => t[k] > 0).map((k) => `<span class="r-${k}">${D.RARETES[k].nom} ${Math.round(t[k] * 10) / 10} %</span>`).join('')}</div>`;
     return `${hud()}<div class="ecran-centre recompense ${r.type}">
       <div class="fin-titre petit-titre">${r.type === 'boss' ? 'Boss vaincu !' : r.type === 'elite' ? 'Élite vaincue !' : 'Victoire'}</div>
       <div class="butin num"><span>${ico('i-or', 2)} +${r.or}</span>${r.eclats ? `<span>${ico('i-eclat', 2)} +${r.eclats}</span>` : ''}${r.xp ? `<span style="color:var(--vert)">+${r.xp} XP</span>` : ''}${r.soin ? `<span style="color:var(--vert)">${ico('i-coeur')} +${r.soin}</span>` : ''}</div>
       ${r.niveaux ? `<div class="niveau-titre" style="font-size:22px">Niveau ${run.niveau} atteint !</div>` : ''}
-      ${evos}<div class="section"><h3>Une carte pour ton paquet</h3>${cartes}${r.cartePrise ? '' : taux}</div>
+      ${evos}<div class="section ${leg ? 'section-leg' : ''}"><h3>${leg ? 'Une légendaire pour ton paquet' : 'Une carte pour ton paquet'}</h3>${cartes}${r.cartePrise ? '' : taux}</div>
       ${rel}${fam}
     </div><div class="pied"><button class="btn ${r.cartePrise ? 'prim' : ''}" data-a="quitterRecompense">Continuer</button></div>`;
   }
@@ -550,7 +566,7 @@
     return `${hud()}<div class="ecran-centre"><div>${ico('i-coffre-ouvert', 5)}</div>
       <div class="butin"><span>${ico('i-or', 2)} +${t.or}</span><span>${ico('i-eclat', 2)} +${t.eclats}</span></div>
       ${t.cartePrise ? '<div class="muet">Carte ajoutée à ton paquet.</div>' : `<div class="cartes-choix">${t.cartes.map((id) => carteHTML({ id, niv: 0, u: 't' + id }, { cls: ui.choix === id ? 'sel' : '', attrs: `data-a="choixCarte" data-p="${id}"` })).join('')}</div>
-      ${ui.choix ? `<button class="btn prim" style="width:100%" data-a="prendre">Prendre ${esc(D.CARTES[ui.choix].nom)}</button>` : ''}`}
+      ${ui.choix ? `<button class="btn prim" style="width:100%" data-a="prendre">Prendre ${esc(D.CARTES[ui.choix].nom)}</button>` : ''}${fortuneHTML(false)}`}
     </div><div class="pied"><button class="btn" data-a="quitter">Repartir</button></div>`;
   }
 
@@ -576,7 +592,7 @@
     const cm = M.conseilMarchand(run);
     return `${hud()}<div class="ecran-centre marchand" style="align-items:stretch">
       <div class="ligne"><span>${ico('i-sac', 3)}</span><div><h2>Le marchand</h2><div class="muet">« Tout se paie, même la lumière. »</div></div></div>
-      ${cm ? mentorLigne(cm.txt) : ''}
+      <div class="ligne-conseils">${cm ? mentorLigne(cm.txt) : ''}${conseillerBouton('marchand')}</div>
       <div class="section"><h3>Cartes</h3><div class="etal">${cartes}</div></div>
       <div class="section"><h3>Talismans</h3><div class="col">${tals || '<span class="muet">Plus rien.</span>'}</div></div>
       <div class="section"><h3>Services</h3><div class="services">${services}</div></div>
@@ -692,6 +708,11 @@
         <h3>Talents (${run.talents.length})</h3>${run.talents.map((id) => talismanHTML(id, { def: M.talentDef(id), ico: 'i-epee' })).join('') || '<span class="muet">Monte de niveau pour en choisir.</span>'}
         <h3>Liens de tribus</h3>${M.liens(run).map((l) => `<div class="muet"><b class="px" style="color:${l.couleur}">${l.nom} ${l.n}</b> : ${l.txt ? esc(l.txt) : 'inactif'} (paliers ${D.TRIBUS[l.tribu].paliers.join(', ')})</div>`).join('')}
       </div>`;
+    } else if (v === 'conseiller') {
+      const ctx = ui.conseillerCtx;
+      const r = ctx === 'chemin' ? M.conseillerChemin(run) : ctx === 'marchand' ? M.conseillerMarchand(run) : ctx === 'combat' ? M.conseillerCombat(run) : M.conseillerCartes(run, (run.recompense || run.tresor || {}).cartes || []);
+      titre = 'Le Conseiller · ' + (r ? r.titre : '');
+      corps = `<div class="col conseiller" style="padding:10px 12px;gap:8px"><div class="muet">Le Conseiller compare, le Mentor tranche. Voici le pour et le contre de chaque option.</div>${r ? r.options.map((o) => `<div class="option ${o.meilleur ? 'meilleur' : ''}"><b>${esc(o.nom)}</b>${o.risque ? ` <span class="risque r-${o.risque}">risque ${o.risque}</span>` : ''}${o.meilleur ? ' <span class="tag-meilleur">le plus solide</span>' : ''}${o.suite ? `<div class="muet">Suite : ${esc(o.suite.join(', '))}</div>` : ''}<div class="pc">${o.pour.map((t) => `<span class="pour">+ ${esc(t)}</span>`).join('')}${o.contre.map((t) => `<span class="contre">- ${esc(t)}</span>`).join('')}${!o.pour.length && !o.contre.length ? '<span class="muet">Rien de notable.</span>' : ''}</div></div>`).join('') : '<span class="muet">Rien à comparer ici.</span>'}</div>`;
     } else if (v === 'aide') { titre = 'Comment jouer'; corps = AIDE; }
     else if (v === 'nouveautes') { titre = 'Nouveautés'; corps = NOUVEAUTES; }
     else if (v === 'credits') { titre = 'Crédits'; corps = CREDITS; }
@@ -713,7 +734,8 @@
     <li>Tu as <b>3 mana</b> par tour et toujours <b>4 cartes en main</b> : chaque carte jouée est aussitôt remplacée.</li>
     <li>Touche une carte : l'<b>aperçu exact</b> s'affiche aussitôt (dégâts sur chaque cible, part de vie qui va tomber, « Létal » si l'ennemi meurt, ta garde face aux dégâts annoncés). Puis <b>touche-la encore</b> (ou Jouer) pour confirmer. S'il y a plusieurs ennemis, touche celui que tu vises.</li>
     <li>Le <b>Mentor</b> te dit en une ligne quelle carte jouer et pourquoi, ou s'il vaut mieux finir le tour. Il conseille aussi les récompenses, les reliques, le marchand et les évolutions.</li>
-    <li>Les <b>Lames</b> frappent, les <b>Sorts</b> protègent ou préparent. Chaque classe a sa propre mécanique (Chaleur, Brume, Gel, Flèches, Rouages, Sève, Rage, Âmes, Cadence, Or).</li>
+    <li>Les <b>Lames</b> frappent, les <b>Sorts</b> protègent ou préparent. Chaque classe a sa propre mécanique (Chaleur, Brume, Gel, Flèches, Rouages, Sève, Rage, Âmes, Cadence, Or, Marque, Contre, Arcane, Harmonie).</li>
+    <li>Le <b>Conseiller</b> (bouton Comparer) ne décide pas : il met côte à côte le pour et le contre de chaque coup, carte, achat ou chemin.</li>
     <li>Au-dessus de chaque ennemi, son <b>intention</b>. Touche-le pour lire ses tactiques : certains volent ton or, se relèvent, se divisent, protègent leurs alliés ou t'obligent à les viser.</li>
     <li>La <b>garde</b> absorbe les coups et disparaît au tour suivant. Gagner du mana deux fois dans un tour donne de la Force (Surcharge).</li></ul>
     <h3>Raretés</h3><ul>
@@ -723,7 +745,9 @@
     <li>Chaque élite te laisse choisir une relique parmi deux, chaque boss une relique de boss parmi trois. Elles restent toute la course et changent ta façon de jouer.</li>
     <li>Après certains combats, un <b>familier</b> s'approche. Il se tient à côté de toi, agit au début de chacun de tes tours et compte pour sa tribu. Après 3 puis 7 combats, il évolue et <b>tu choisis sa voie</b> (A ou B) : chaque lignée a 4 formes finales possibles.</li></ul>
     <h3>La course</h3><ul>
-    <li>Trois actes, chacun dans un monde tiré au hasard, avec un boss au sommet.</li>
+    <li>Trois actes de 16 étapes, chacun dans un monde tiré au hasard, avec un boss annoncé dès le départ. Trois voies : Sécurité à gauche (braseros), Équilibre au centre, Audace à droite (élites, élite enflammée). Des carrefours permettent de changer de voie.</li>
+    <li>Chaque boss vaincu offre <b>3 cartes légendaires</b> au choix. La <b>jauge de fortune</b> monte à chaque récompense commune ou passée et augmente tes chances de rares ; elle retombe quand tu prends une rare.</li>
+    <li><b>Serments</b> : des défis facultatifs à choisir avant de partir (élites enflammées, meutes, jeûne, orgueil), contre du renom.</li>
     <li>À chaque <b>niveau</b>, tu choisis un talent. Chez le marchand, tu peux monter le <b>rang de ta compétence</b> et acheter des talismans contre des éclats.</li>
     <li><b>Tribus</b> : Forgés, Bêtes, Lucioles, Cendrés, Givrins. Avec 3, 5 puis 7 cartes d'une tribu, un lien s'active.</li>
     <li>Certaines cartes ont une <b>quête</b> : elles évoluent toutes seules (★★, ★★★).</li></ul>
@@ -731,6 +755,18 @@
     <li>Le <b>renom</b> débloque les classes (Vesper au niveau 7, Nacre au niveau 8), puis les héritages et les Brasiers (10 paliers de difficulté).</li>
     <li>« Tout débloqué », sur l'écran titre, ouvre tout de suite toutes les classes, les héritages et les Brasiers.</li></ul></div>`;
   const NOUVEAUTES = `<div class="texte-long">
+    <h3>V9, 20/11/2026 : plus long, plus profond</h3><ul>
+    <li>Actes de 16 étapes avant le boss, sur trois voies lisibles (Sécurité, Équilibre, Audace) reliées par des carrefours. 2 à 3 élites par acte, dont une élite enflammée qui paie trois reliques.</li>
+    <li>Le boss de l'acte est annoncé dès la première étape. 3 bosses possibles par acte, chacun avec sa mécanique.</li>
+    <li>Après chaque boss : 3 cartes légendaires garanties au choix.</li>
+    <li>Jauge de fortune : chaque récompense commune ou passée augmente tes chances de rare, d'épique et de légendaire.</li>
+    <li>4 nouvelles classes : Corvine la Lame-corbeau (assassin, Marques), Basalte le Rempart vivant (colosse, Contre), Ysar l'Arcaniste (mage, Arcane), Aubade la Chanteuse d'aube (enchanteresse, Harmonie et familiers). 14 classes, chacune avec sa silhouette.</li>
+    <li>71 nouvelles cartes, dont une légendaire par classe et des légendaires neutres. 216 cartes en tout.</li>
+    <li>19 nouveaux monstres, chaque élite a sa mécanique signature (voile de suie, carapace, seuil, torpeur, ombre, deuxième phase).</li>
+    <li>Le Conseiller : compare le pour et le contre de chaque option (coups, cartes, achats, chemins). Le Mentor reste là pour trancher.</li>
+    <li>Serments : 4 défis facultatifs contre du renom. 8 nouveaux événements (33 en tout).</li>
+    <li>Brasier 10 plus dur : plus de PV par acte, boss plus coriaces qui s'énervent, soins et or réduits.</li>
+    <li>Nouvelle musique en synthèse : un leitmotiv au piano et aux cordes, un thème de combat à basse mouvante, un thème de boss avec chœur, une fanfare de victoire et une ambiance de carte.</li></ul>
     <h3>V8, 20/11/2026 : profondeur et ressenti</h3><ul>
     <li>Aperçu exact avant de jouer : dégâts sur chaque cible, part de vie qui tombe, marque « Létal », garde face aux dégâts annoncés. Calculé par le moteur du jeu lui-même.</li>
     <li>Combat plus vivant : carte qui vole vers sa cible, arrêt sur image et secousse sur les gros coups, éclats de feu, de givre, de poison ou de Cadence, note qui monte à chaque carte enchaînée.</li>
@@ -756,12 +792,12 @@
     <h3>Illustrations des cartes, reliques et familiers</h3><p>Composées pour Braises à partir des armes du « DungeonTileset II » de 0x72 et du « 1-Bit Pack » 1.2 de Kenney (kenney.nl), licence <b>CC0 1.0</b> : sprites recolorés, ciels, silhouettes, sols, halos et particules générés par code.</p>
     <h3>Arènes</h3><p>Générées par code (outils/arenes.py), avec les textures de mur et de sol du DungeonTileset II de 0x72 (CC0 1.0), recolorées. Flammes et braises animées faites maison.</p>
     <h3>Police</h3><p>Pixelify Sans, The Pixelify Sans Project Authors, licence <b>SIL Open Font License 1.1</b>.</p>
-    <h3>Musique et sons</h3><p>Composés et générés en direct dans le navigateur (synthèse Web Audio), faits maison. Aucun échantillon externe.</p>
-    <h3>Jeu</h3><p>Braises est un jeu original. Ses mécaniques s'inspirent du genre deckbuilder roguelike (main qui se remplit, classes à compétence évolutive, races de cartes et cartes à quête à la façon de Rogue Adventure ; carte à embranchements, reliques et intentions à la façon de Slay the Spire). Aucun nom, texte, visuel ni son n'est repris de ces jeux.</p></div>`;
+    <h3>Musique et sons</h3><p>Composés et générés en direct dans le navigateur (synthèse Web Audio), faits maison. Aucun échantillon externe. La bande originale de la V9 s'inspire de l'esprit des musiques de RPG japonais des années 90 (leitmotiv, piano, cordes, chœur) ; toutes les mélodies sont originales, aucune n'est reprise.</p>
+    <h3>Jeu</h3><p>Braises est un jeu original. Ses mécaniques s'inspirent du genre deckbuilder roguelike (main qui se remplit, classes à compétence évolutive, races de cartes et cartes à quête à la façon de Rogue Adventure ; carte à embranchements, reliques et intentions à la façon de Slay the Spire). Aucun nom, texte, visuel ni son n'est repris de ces jeux. Les archétypes des 4 classes de la V9 (assassin, colosse, mage, enchanteresse) sont des rôles classiques du genre MOBA ; noms, visuels et mécaniques sont originaux.</p></div>`;
 
   // ---------- actions ----------
   function nouvelleCourse() {
-    run = M.nouvelleCourse(ui.classe, { heritage: ui.heritage, brasier: ui.brasier });
+    run = M.nouvelleCourse(ui.classe, { heritage: ui.heritage, brasier: ui.brasier, serments: ui.serments });
     ui.ecran = 'jeu'; ui.selNoeud = null; ui.choix = null; sauver();
   }
   async function jouerSel(cibleU) {
@@ -811,6 +847,9 @@
       case 'abandon': if (ui.abandon) { if (run) { run.fini = true; run.gagne = false; M.enregistrerFin(meta, run); } run = null; ui.abandon = false; sauver(); } else ui.abandon = true; break;
       case 'nouvelle': ui.ecran = 'classe'; ui.classe = ui.classe || meta.dernierClasse || null; break;
       case 'mentor': meta.mentor = !meta.mentor; sauver(); break;
+      case 'conseillerBascule': meta.conseiller = !meta.conseiller; sauver(); break;
+      case 'conseiller': ui.conseillerCtx = p; ui.voile = 'conseiller'; break;
+      case 'serment': ui.serments = ui.serments.includes(p) ? ui.serments.filter((x) => x !== p) : ui.serments.concat(p); break;
       case 'tout': meta.toutDebloque = !meta.toutDebloque; sauver(); toast(meta.toutDebloque ? 'Tout est débloqué' : 'Progression normale'); break;
       case 'son': Son.bascule(); meta.muet = Son.estMuet(); sauver(); break;
       case 'classe': if (M.classesDebloquees(meta).includes(p)) { ui.classe = p; ui.heritage = 0; } else toast('Renom niveau ' + D.CLASSES[p].renom + ' requis'); break;
