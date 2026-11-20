@@ -1,7 +1,7 @@
 {
   "name": "Braises",
   "short_name": "Braises",
-  "description": "Braises V7 : deckbuilder roguelike en pixel art rétro, fait maison.",
+  "description": "Braises V8 : deckbuilder roguelike en pixel art rétro, fait maison.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

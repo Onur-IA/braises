@@ -53,7 +53,7 @@
       ]
     },
     fumee: {
-      nom: 'Fumée', titre: 'la Voile-grise', pv: 59, couleur: '#9fb0c8', sprite: 'h-fumee', renom: 1,
+      nom: 'Fumée', titre: 'la Voile-grise', pv: 58, couleur: '#9fb0c8', sprite: 'h-fumee', renom: 1,
       resume: 'Se dérobe dans la Brume et affaiblit tout ce qui l\'approche.',
       comp: { nom: 'Voile', rangs: ['La 3e carte jouée chaque tour donne 1 Brume.', 'Gagner de la Brume inflige 1 Faiblesse à tous les ennemis.', 'La 2e carte du tour suffit.'] },
       depart: ['frappe', 'frappe', 'frappe', 'frappe', 'parade', 'parade', 'parade', 'voile', 'voile', 'suffocation'],
@@ -83,7 +83,7 @@
       ]
     },
     ivra: {
-      nom: 'Ivra', titre: 'la Tireuse de cendres', pv: 58, couleur: '#6fd6b8', sprite: 'h-ivra', renom: 2,
+      nom: 'Ivra', titre: 'la Tireuse de cendres', pv: 62, couleur: '#6fd6b8', sprite: 'h-ivra', renom: 2,
       resume: 'Chaque Lame encoche une Flèche, qui part toute seule en fin de tour.',
       comp: { nom: 'Carquois', rangs: ['Chaque Lame donne 1 Flèche. Fin de tour : chaque Flèche inflige 2 dégâts.', 'Les Flèches infligent 3 dégâts.', 'Les Sorts donnent aussi 1 Flèche.'] },
       depart: ['frappe', 'frappe', 'frappe', 'parade', 'parade', 'parade', 'parade', 'tir', 'tir', 'encoche'],
@@ -113,7 +113,7 @@
       ]
     },
     lierre: {
-      nom: 'Lierre', titre: 'la Sauvage', pv: 48, couleur: '#7ccf5a', sprite: 'h-lierre', renom: 4,
+      nom: 'Lierre', titre: 'la Sauvage', pv: 52, couleur: '#7ccf5a', sprite: 'h-lierre', renom: 4,
       resume: 'Se couvre d\'Épines, accumule la Sève et passe en Forme sauvage.',
       comp: { nom: 'Sauvagerie', rangs: ['Chaque carte donne 1 Sève. À 9 Sève : Forme sauvage (+1 Force, +2 Épines).', 'Chaque Sort donne aussi 1 Épine.', 'La Forme sauvage vient dès 6 Sève.'] },
       depart: ['frappe', 'frappe', 'frappe', 'parade', 'parade', 'parade', 'ronce', 'ronce', 'griffe', 'griffe'],
@@ -128,7 +128,7 @@
       ]
     },
     grenat: {
-      nom: 'Grenat', titre: 'la Furieuse', pv: 56, couleur: '#e05a4a', sprite: 'h-grenat', renom: 5,
+      nom: 'Grenat', titre: 'la Furieuse', pv: 62, couleur: '#e05a4a', sprite: 'h-grenat', renom: 5,
       resume: 'Plus elle saigne, plus elle frappe fort.',
       comp: { nom: 'Furie', rangs: ['Chaque perte de PV donne 1 Rage (Lames +1 par Rage, au plus 5).', 'Sous la moitié de tes PV : +1 mana par tour.', 'Achever un ennemi rend 5 PV.'] },
       depart: ['frappe', 'frappe', 'frappe', 'parade', 'parade', 'parade', 'parade', 'hache', 'hache', 'saignee'],
@@ -310,6 +310,63 @@
   carte({ id: 'potdevin', nom: 'Pot-de-vin', t: 'S', cl: 'nacre', r: 'P', cib: 'e', c: 0, or: 20, v: [[1], [2]], txt: (v) => `Paie 20 or : la cible (pas un boss) renonce à son action ce tour.${v[0] > 1 ? ' Pioche 1 carte.' : ''}`, f: (x, v) => { x.annulerIntent(x.cible); if (v[0] > 1) x.pioche(1); } });
   carte({ id: 'banqueroute', nom: 'Banqueroute', t: 'L', cl: 'nacre', r: 'E', cib: 'e', v: [[60, 2], [80, 2]], txt: (v) => `Dépense jusqu'à ${v[0]} or : 1 dégât par ${v[1]} or dépensé.`, f: (x, v) => { const o = Math.min(v[0], x.run.or); x.gagnerOr(-o); x.deg(Math.floor(o / v[1])); } });
 
+  // ---------- V8 : cartes de synergie (classes, tribus, quêtes, épiques, légendaires) ----------
+  // Solen : Chaleur
+  carte({ id: 'fournaise', nom: 'Fournaise', t: 'L', cl: 'solen', cib: 'e', v: [[4, 2], [6, 3]], txt: (v) => `Inflige ${v[0]} dégâts et ${v[1]} Brûlure. Gagne 1 Chaleur.`, f: (x, v) => { x.deg(v[0]); x.statut(x.cible, 'brulure', v[1]); x.soi('chaleur', 1); } });
+  carte({ id: 'cendrier', nom: 'Cendrier', t: 'S', cl: 'solen', r: 'P', v: [[4, 2], [6, 3]], txt: (v) => `Gagne ${v[0]} garde, +${v[1]} par Chaleur (sans la dépenser).`, f: (x, v) => x.garde(v[0] + v[1] * x.st('chaleur')) });
+  carte({ id: 'soleilnoir', nom: 'Soleil noir', t: 'L', cl: 'solen', r: 'R', cib: 'tous', v: [[4, 2], [6, 3]], txt: (v) => `Inflige ${v[0]} dégâts à tous les ennemis, +1 par Chaleur. ${v[1]} Brûlure à tous.`, f: (x, v) => { x.degTous(v[0] + x.st('chaleur')); x.statutTous('brulure', v[1]); } });
+  // Fumée : Brume et Faiblesse
+  carte({ id: 'fumigene', nom: 'Fumigène', t: 'S', cl: 'fumee', cib: 'tous', v: [[1, 1, 4], [2, 1, 6]], txt: (v) => `${v[0]} Faiblesse à tous les ennemis. Gagne ${v[2]} garde et ${v[1]} Brume.`, f: (x, v) => { x.statutTous('faible', v[0]); x.garde(v[2]); x.soi('brume', v[1]); } });
+  carte({ id: 'lameombre', nom: 'Lame d\'ombre', t: 'L', cl: 'fumee', r: 'P', c: 0, cib: 'e', v: [[3], [5]], txt: (v) => `Inflige ${v[0]} dégâts, le double si tu as de la Brume.`, f: (x, v) => x.deg(x.st('brume') ? v[0] * 2 : v[0]) });
+  carte({ id: 'eclipse', nom: 'Éclipse', t: 'S', cl: 'fumee', r: 'R', v: [[7, 2], [10, 3]], txt: (v) => `Gagne ${v[0]} garde et ${v[1]} Brume. Pioche 1 carte.`, f: (x, v) => { x.garde(v[0]); x.soi('brume', v[1]); x.pioche(1); } });
+  // Silex : Gel
+  carte({ id: 'verglas', nom: 'Verglas', t: 'S', cl: 'silex', cib: 'e', v: [[4, 2], [6, 2]], txt: (v) => `Gagne ${v[0]} garde. ${v[1]} Gel à la cible.`, f: (x, v) => { x.garde(v[0]); x.statut(x.cible, 'gel', v[1]); } });
+  carte({ id: 'pic', nom: 'Pic de givre', t: 'L', cl: 'silex', r: 'P', cib: 'e', sansGel: true, v: [[6, 2], [8, 3]], txt: (v) => `Inflige ${v[0]} dégâts, +${v[1]} par Gel de la cible (sans le retirer).`, f: (x, v) => x.deg(v[0] + v[1] * ((x.cible && x.cible.st.gel) || 0)) });
+  carte({ id: 'glacier', nom: 'Glacier', t: 'S', cl: 'silex', r: 'R', v: [[4, 2], [6, 3]], txt: (v) => `Gagne ${v[0]} garde, +${v[1]} par Gel sur les ennemis.`, f: (x, v) => x.garde(v[0] + v[1] * x.ennemisVivants().reduce((s, e) => s + (e.st.gel || 0), 0)) });
+  // Ivra : Flèches et Exposé
+  carte({ id: 'carquois', nom: 'Carquois plein', t: 'S', cl: 'ivra', v: [[2, 3], [3, 4]], txt: (v) => `Gagne ${v[0]} Flèches et ${v[1]} garde.`, f: (x, v) => { x.soi('fleches', v[0]); x.garde(v[1]); } });
+  carte({ id: 'salve', nom: 'Salve', t: 'L', cl: 'ivra', r: 'P', cib: 'alea', v: [[1], [2]], txt: (v) => `Décoche tout de suite tes Flèches, puis gagne ${v[0]} Flèche${v[0] > 1 ? 's' : ''}.`, f: (x, v) => { x.decocher(); x.soi('fleches', v[0]); } });
+  carte({ id: 'marque', nom: 'Marque du chasseur', t: 'S', cl: 'ivra', r: 'R', cib: 'e', v: [[2], [3]], txt: (v) => `${v[0]} Exposé à la cible. Gagne 1 Flèche par Exposé de la cible.`, f: (x, v) => { x.statut(x.cible, 'expose', v[0]); x.soi('fleches', (x.cible && x.cible.st.expose) || 0); } });
+  // Bram : Rouages
+  carte({ id: 'boulon', nom: 'Boulon', t: 'L', cl: 'bram', tr: 'forge', cib: 'e', v: [[6, 1], [8, 2]], txt: (v) => `Inflige ${v[0]} dégâts. Gagne ${v[1]} Rouage${v[1] > 1 ? 's' : ''}.`, f: (x, v) => { x.deg(v[0]); x.rouages(v[1]); } });
+  carte({ id: 'chaudiere', nom: 'Chaudière', t: 'S', cl: 'bram', r: 'P', v: [[3, 3], [4, 5]], txt: (v) => `Gagne ${v[0]} Rouages et ${v[1]} garde.`, f: (x, v) => { x.rouages(v[0]); x.garde(v[1]); } });
+  carte({ id: 'automate', nom: 'Automate', t: 'S', cl: 'bram', tr: 'forge', r: 'R', v: [[7, 2], [10, 3]], txt: (v) => `Gagne ${v[0]} garde et ${v[1]} Rouages.`, f: (x, v) => { x.garde(v[0]); x.rouages(v[1]); } });
+  // Lierre : Épines et Forme sauvage
+  carte({ id: 'epineux', nom: 'Buisson épineux', t: 'S', cl: 'lierre', v: [[2, 2, 4], [3, 3, 6]], txt: (v) => `Gagne ${v[2]} garde, ${v[0]} Épines et ${v[1]} Sève.`, f: (x, v) => { x.garde(v[2]); x.soi('epines', v[0]); x.seve(v[1]); } });
+  carte({ id: 'morsure', nom: 'Morsure de ronce', t: 'L', cl: 'lierre', r: 'P', cib: 'e', v: [[5, 2], [7, 3]], txt: (v) => `Inflige ${v[0]} dégâts, +${v[1]} par Épine. Gagne 1 Épine et 1 Sève.`, f: (x, v) => { x.deg(v[0] + v[1] * x.st('epines')); x.soi('epines', 1); x.seve(1); } });
+  carte({ id: 'fureurvert', nom: 'Fureur verte', t: 'L', cl: 'lierre', r: 'R', cib: 'e', v: [[7], [9]], txt: (v) => `Inflige ${v[0]} dégâts, deux fois en Forme sauvage. Sinon, gagne 2 Sève.`, f: (x, v) => { x.deg(v[0]); if (x.st('sauvage')) x.deg(v[0]); else x.seve(2); } });
+  // Grenat : Rage et PV
+  carte({ id: 'sacrifice', nom: 'Sacrifice', t: 'S', cl: 'grenat', c: 0, v: [[2, 2], [1, 2]], txt: (v) => `Perds ${v[0]} PV. Pioche ${v[1]} cartes. Gagne 1 Rage.`, f: (x, v) => { x.perdPV(v[0]); x.pioche(v[1]); x.soi('rage', 1); } });
+  carte({ id: 'coleresang', nom: 'Colère de sang', t: 'L', cl: 'grenat', r: 'P', cib: 'e', v: [[5, 2], [7, 3]], txt: (v) => `Inflige ${v[0]} dégâts, +${v[1]} par Rage.`, f: (x, v) => x.deg(v[0] + v[1] * x.st('rage')) });
+  carte({ id: 'berserk', nom: 'Berserk', t: 'S', cl: 'grenat', r: 'R', v: [[2, 3], [3, 3]], txt: (v) => `Perds ${v[1]} PV. Gagne ${v[0]} Force et 2 Rage.`, f: (x, v) => { x.perdPV(v[1]); x.soi('force', v[0]); x.soi('rage', 2); } });
+  // Ossian : Âmes et Consumer
+  carte({ id: 'moisson', nom: 'Moisson', t: 'L', cl: 'ossian', cib: 'e', v: [[4, 2], [6, 3]], txt: (v) => `Inflige ${v[0]} dégâts, +${v[1]} par Âme.`, f: (x, v) => x.deg(v[0] + v[1] * x.st('ames')) });
+  carte({ id: 'linceul', nom: 'Linceul', t: 'S', cl: 'ossian', r: 'P', exil: true, v: [[11], [15]], txt: (v) => `Gagne ${v[0]} garde. Consumer.`, f: (x, v) => x.garde(v[0]) });
+  carte({ id: 'requiem', nom: 'Requiem', t: 'L', cl: 'ossian', r: 'R', cib: 'tous', v: [[3, 2], [4, 3]], txt: (v) => `Inflige ${v[0]} dégâts à tous, +${v[1]} par carte consumée ce combat (au plus +16).`, f: (x, v) => x.degTous(v[0] + Math.min(16, v[1] * x.consumees())) });
+  // Vesper : Cadence
+  carte({ id: 'contretemps', nom: 'Contretemps', t: 'L', cl: 'vesper', cib: 'e', v: [[4], [5]], txt: (v) => `Inflige ${v[0]} dégâts, deux fois si ta carte précédente était un Sort.`, f: (x, v) => { x.deg(v[0]); if (x.precedent() === 'S') x.deg(v[0]); } });
+  carte({ id: 'trotteuse', nom: 'Trotteuse', t: 'L', cl: 'vesper', r: 'P', c: 0, cib: 'e', v: [[2, 1], [3, 1]], txt: (v) => `Inflige ${v[0]} dégâts. Gagne ${v[1]} Cadence.`, f: (x, v) => { x.deg(v[0]); x.cadence(v[1]); } });
+  carte({ id: 'minuit', nom: 'Minuit', t: 'S', cl: 'vesper', r: 'R', v: [[1, 2], [1, 4]], txt: (v) => `Ta prochaine carte est jouée deux fois (Écho). Gagne ${v[1]} garde.`, f: (x, v) => { x.soi('echo', v[0]); x.garde(v[1]); } });
+  // Nacre : l'or comme arme
+  carte({ id: 'creance', nom: 'Créance', t: 'S', cl: 'nacre', cib: 'e', v: [[2, 6], [2, 9]], txt: (v) => `${v[0]} Faiblesse à la cible. Fin du combat : +${v[1]} or.`, f: (x, v) => { x.statut(x.cible, 'faible', v[0]); x.orFin(v[1]); } });
+  carte({ id: 'coffrefort', nom: 'Coffre-fort', t: 'S', cl: 'nacre', r: 'P', v: [[6, 5], [8, 8]], txt: (v) => `Gagne ${v[0]} garde. Fin du combat : +${v[1]} or.`, f: (x, v) => { x.garde(v[0]); x.orFin(v[1]); } });
+  carte({ id: 'pluiedor', nom: 'Pluie d\'or', t: 'L', cl: 'nacre', r: 'R', cib: 'tous', v: [[7, 6], [10, 8]], txt: (v) => `Inflige ${v[0]} dégâts à tous les ennemis. Fin du combat : +${v[1]} or.`, f: (x, v) => { x.degTous(v[0]); x.orFin(v[1]); } });
+  // Tribus
+  carte({ id: 'traque', nom: 'Traque', t: 'L', tr: 'bete', cib: 'e', v: [[5, 1], [7, 1]], txt: (v) => `Inflige ${v[0]} dégâts et ${v[1]} Exposé.`, f: (x, v) => { x.deg(v[0]); x.statut(x.cible, 'expose', v[1]); } });
+  carte({ id: 'hurlement', nom: 'Hurlement', t: 'S', tr: 'bete', r: 'P', v: [[3], [2]], txt: (v) => `Gagne 1 Force par ${v[0]} Bêtes dans ton paquet (au moins 1).`, f: (x, v) => x.soi('force', Math.max(1, Math.floor(x.tribu('bete') / v[0]))) });
+  carte({ id: 'trempe', nom: 'Trempe', t: 'S', tr: 'forge', r: 'P', v: [[5, 1], [7, 2]], txt: (v) => `Gagne ${v[0]} garde, +${v[1]} par Forgé dans ton paquet.`, f: (x, v) => x.garde(v[0] + v[1] * x.tribu('forge')) });
+  carte({ id: 'lueur', nom: 'Lueur', t: 'S', tr: 'luciole', c: 0, v: [[2], [3]], txt: (v) => `Soigne ${v[0]} PV. Pioche 1 carte.`, f: (x, v) => { x.soin(v[0]); x.pioche(1); } });
+  carte({ id: 'nuitclaire', nom: 'Nuit claire', t: 'S', tr: 'luciole', r: 'P', cib: 'tous', v: [[1, 1], [1, 2]], txt: (v) => `${v[0]} Faiblesse à tous. Soigne ${v[1]} PV par Luciole dans ton paquet.`, f: (x, v) => { x.statutTous('faible', v[0]); x.soin(v[1] * x.tribu('luciole')); } });
+  carte({ id: 'cendreuse', nom: 'Pluie de cendres', t: 'L', tr: 'cendre', cib: 'tous', v: [[3, 1], [4, 2]], txt: (v) => `Inflige ${v[0]} dégâts et ${v[1]} Brûlure à tous les ennemis.`, f: (x, v) => { x.degTous(v[0]); x.statutTous('brulure', v[1]); } });
+  carte({ id: 'givrebrise', nom: 'Brise glacée', t: 'S', tr: 'givre', r: 'P', cib: 'tous', v: [[1, 2], [1, 3]], txt: (v) => `1 Gel à tous les ennemis. Gagne ${v[1]} garde par Givrin dans ton paquet.`, f: (x, v) => { x.statutTous('gel', v[0]); x.garde(v[1] * x.tribu('givre')); } });
+  // Neutres : quêtes, épique, légendaire
+  carte({ id: 'ecuyer', nom: 'Écuyer', t: 'L', cib: 'e', q: { k: 'tue', s: [4, 10], txt: 'vaincre des ennemis' }, v: [[5, 2], [7, 4], [10, 6]], txt: (v) => `Inflige ${v[0]} dégâts. Gagne ${v[1]} garde.`, f: (x, v) => { x.deg(v[0]); x.garde(v[1]); } });
+  carte({ id: 'vigie', nom: 'Vigie', t: 'S', q: { k: 'garde', s: [60, 180], txt: 'gagner de la garde' }, v: [[5, 0], [7, 0], [9, 1]], txt: (v) => `Gagne ${v[0]} garde.${v[1] ? ' Pioche 1 carte.' : ''}`, f: (x, v) => { x.garde(v[0]); if (v[1]) x.pioche(1); } });
+  carte({ id: 'riposte', nom: 'Riposte', t: 'L', r: 'P', cib: 'e', v: [[20], [30]], txt: (v) => `Inflige autant de dégâts que ta garde (au plus ${v[0]}).`, f: (x, v) => x.deg(Math.min(v[0], x.c.j.garde)) });
+  carte({ id: 'oubli', nom: 'Oubli', t: 'S', r: 'R', c: 0, exil: true, v: [[2], [3]], txt: (v) => `Pioche ${v[0]} cartes. Consumer.`, f: (x, v) => x.pioche(v[0]) });
+  carte({ id: 'cataclysme', nom: 'Cataclysme', t: 'L', r: 'E', c: 2, cib: 'tous', exil: true, v: [[13], [18]], txt: (v) => `Inflige ${v[0]} dégâts à tous les ennemis. Consumer.`, f: (x, v) => x.degTous(v[0]) });
+  carte({ id: 'couronnebraise', nom: 'Couronne de braise', t: 'S', r: 'L', c: 2, exil: true, v: [[2, 2], [3, 2]], txt: (v) => `Gagne ${v[0]} Force. Tes ${v[1]} prochaines cartes sont jouées deux fois. Consumer.`, f: (x, v) => { x.soi('force', v[0]); x.soi('echo', v[1]); } });
+
   // Neutres épiques
   carte({ id: 'tempete', nom: 'Tempête d\'acier', t: 'L', r: 'E', c: 2, cib: 'alea', v: [[4, 4], [5, 5]], txt: (v) => `Inflige ${v[0]} dégâts ${v[1]} fois à des ennemis au hasard.`, f: (x, v) => { for (let i = 0; i < v[1]; i++) x.degAlea(v[0]); } });
   carte({ id: 'miroirgarde', nom: 'Bouclier miroir', t: 'S', r: 'E', v: [[0], [5]], txt: (v) => `Double ta garde${v[0] ? ', puis +' + v[0] : ''}.`, f: (x, v) => x.garde(x.c.j.garde + v[0]) });
@@ -383,27 +440,38 @@
   // ---------- familiers (retour de la V5, adaptés aux tribus) ----------
   // Un familier agit au début de chacun de tes tours. Il évolue après 3 puis 7 combats à tes côtés,
   // et à partir du 2e stade il compte comme 1 (puis 2) carte de sa tribu pour les liens.
+  // V8 : à chaque évolution (stade 2 après 3 combats, stade 3 après 7), choix entre la voie A et la voie B.
   const FAMILIERS = {
-    flammeche: { tribu: 'cendre', stades: [
+    flammeche: { tribu: 'cendre', voies: ['Brasier', 'Foyer'], stades: [
       { nom: 'Flammèche', sprite: 'f-flammeche', txt: 'Début de tour : 2 Brûlure à un ennemi au hasard.', k: 'brul', n: 2 },
-      { nom: 'Serpenflamme', sprite: 'f-serpenflamme', txt: 'Début de tour : 3 Brûlure à un ennemi au hasard.', k: 'brul', n: 3 },
-      { nom: 'Dracendre', sprite: 'f-dracendre', txt: 'Début de tour : 2 Brûlure à tous les ennemis.', k: 'brulTous', n: 2 }] },
-    cendrot: { tribu: 'forge', stades: [
+      { A: { nom: 'Serpenflamme', sprite: 'f-serpenflamme', txt: 'Début de tour : 3 Brûlure à un ennemi au hasard.', k: 'brul', n: 3 },
+        B: { nom: 'Lampion', sprite: 'f-lampion', txt: 'Un tour sur deux : +1 mana (sans Surcharge).', k: 'mana2', n: 1 } },
+      { A: { nom: 'Dracendre', sprite: 'f-dracendre', txt: 'Début de tour : 2 Brûlure à tous les ennemis.', k: 'brulTous', n: 2 },
+        B: { nom: 'Fournaise vive', sprite: 'f-fournaisev', txt: 'Un tour sur deux : +1 mana et pioche 1 carte.', k: 'mana2p', n: 1 } }] },
+    cendrot: { tribu: 'forge', voies: ['Ronces de fer', 'Rempart'], stades: [
       { nom: 'Cendrot', sprite: 'f-cendrot', txt: 'Début de tour : 2 garde.', k: 'garde', n: 2 },
-      { nom: 'Golemet', sprite: 'f-golemet', txt: 'Début de tour : 3 garde.', k: 'garde', n: 3 },
-      { nom: 'Colossin', sprite: 'f-colossin', txt: 'Début de tour : 5 garde.', k: 'garde', n: 5 }] },
-    givrelin: { tribu: 'givre', stades: [
+      { A: { nom: 'Hérisfer', sprite: 'f-herisfer', txt: 'Début de tour : 2 garde et 1 Épine.', k: 'gardeEpines', n: 2, e: 1 },
+        B: { nom: 'Golemet', sprite: 'f-golemet', txt: 'Début de tour : 4 garde.', k: 'garde', n: 4 } },
+      { A: { nom: 'Bastion-ronce', sprite: 'f-bastion', txt: 'Début de tour : 3 garde et 2 Épines.', k: 'gardeEpines', n: 3, e: 2 },
+        B: { nom: 'Colossin', sprite: 'f-colossin', txt: 'Début de tour : 6 garde.', k: 'garde', n: 6 } }] },
+    givrelin: { tribu: 'givre', voies: ['Gel', 'Brume froide'], stades: [
       { nom: 'Givrelin', sprite: 'f-givrelin', txt: 'Début de tour : 1 Gel à un ennemi au hasard.', k: 'gel', n: 1 },
-      { nom: 'Givraile', sprite: 'f-givraile', txt: 'Début de tour : 1 Gel à deux ennemis au hasard.', k: 'gel2', n: 1 },
-      { nom: 'Spectregel', sprite: 'f-spectregel', txt: 'Début de tour : 1 Gel à tous les ennemis.', k: 'gelTous', n: 1 }] },
-    chaton: { tribu: 'bete', stades: [
+      { A: { nom: 'Givraile', sprite: 'f-givraile', txt: 'Début de tour : 1 Gel à deux ennemis au hasard.', k: 'gel2', n: 1 },
+        B: { nom: 'Brumelin', sprite: 'f-brumelin', txt: 'Début de tour : 1 Faiblesse à l\'ennemi le plus robuste.', k: 'faible', n: 1 } },
+      { A: { nom: 'Spectregel', sprite: 'f-spectregel', txt: 'Début de tour : 1 Gel à tous les ennemis.', k: 'gelTous', n: 1 },
+        B: { nom: 'Blizzardin', sprite: 'f-blizzardin', txt: 'Début de tour : 1 Faiblesse à tous les ennemis.', k: 'faibleTous', n: 1 } }] },
+    chaton: { tribu: 'bete', voies: ['Crocs', 'Traque'], stades: [
       { nom: 'Chaton de suie', sprite: 'f-chaton', txt: 'Début de tour : 3 dégâts à l\'ennemi le plus faible.', k: 'mord', n: 3 },
-      { nom: 'Renardeau', sprite: 'f-renardeau', txt: 'Début de tour : 4 dégâts à l\'ennemi le plus faible.', k: 'mord', n: 4 },
-      { nom: 'Ours-roc', sprite: 'f-oursroc', txt: 'Début de tour : 4 dégâts deux fois à l\'ennemi le plus faible.', k: 'mord2', n: 4 }] },
-    lucet: { tribu: 'luciole', stades: [
+      { A: { nom: 'Renardeau', sprite: 'f-renardeau', txt: 'Début de tour : 4 dégâts à l\'ennemi le plus faible.', k: 'mord', n: 4 },
+        B: { nom: 'Pisteur', sprite: 'f-pisteur', txt: 'Début de tour : 1 Exposé à l\'ennemi le plus robuste.', k: 'expose', n: 1 } },
+      { A: { nom: 'Ours-roc', sprite: 'f-oursroc', txt: 'Début de tour : 4 dégâts deux fois à l\'ennemi le plus faible.', k: 'mord2', n: 4 },
+        B: { nom: 'Loup-guide', sprite: 'f-loupguide', txt: 'Début de tour : 1 Exposé à tous et 3 dégâts au plus faible.', k: 'exposeMord', n: 3 } }] },
+    lucet: { tribu: 'luciole', voies: ['Soin', 'Savoir'], stades: [
       { nom: 'Lucet', sprite: 'f-lucet', txt: 'Début de tour : soigne 1 PV.', k: 'soin', n: 1 },
-      { nom: 'Libelune', sprite: 'f-libelune', txt: 'Début de tour : soigne 2 PV.', k: 'soin', n: 2 },
-      { nom: 'Phalène d\'or', sprite: 'f-phalene', txt: 'Début de tour : soigne 2 PV. Début de combat : 1 Esquive.', k: 'soin', n: 2, esquive: 1 }] }
+      { A: { nom: 'Libelune', sprite: 'f-libelune', txt: 'Début de tour : soigne 2 PV.', k: 'soin', n: 2 },
+        B: { nom: 'Scribe-luciole', sprite: 'f-scribe', txt: 'Un tour sur deux : pioche 1 carte.', k: 'pioche2', n: 1 } },
+      { A: { nom: 'Phalène d\'or', sprite: 'f-phalene', txt: 'Début de tour : soigne 2 PV. Début de combat : 1 Esquive.', k: 'soin', n: 2, esquive: 1 },
+        B: { nom: 'Lanterne-mère', sprite: 'f-lanternemere', txt: 'Début de tour : pioche 1 carte et soigne 1 PV.', k: 'piocheSoin', n: 1 } }] }
   };
 
   // ---------- talismans ----------
@@ -568,7 +636,64 @@
       { txt: 'Lui laisser des miettes (+10 XP)', eff: [['xp', 10]] }] },
     { id: 'statue', titre: 'La statue sans visage', txt: 'Une statue tend une main ouverte. Dans l\'autre, une pierre bleue luit.', choix: [
       { txt: 'Prendre la pierre (+2 éclats, un combat difficile ensuite)', eff: [['eclats', 2], ['elite']] },
-      { txt: 'Déposer une pièce (−15 or, +15 XP)', cond: ['or', 15], eff: [['or', -15], ['xp', 15]] }] }
+      { txt: 'Déposer une pièce (−15 or, +15 XP)', cond: ['or', 15], eff: [['or', -15], ['xp', 15]] }] },
+    // V8 : dilemmes risque contre récompense, répartis sur les trois actes
+    { id: 'sanctuaire', titre: 'Le sanctuaire des braises', txt: 'Un brasier minuscule brûle sans bois sur un autel de pierre. Une voix demande ce que tu es prêt à laisser.', choix: [
+      { txt: 'Offrir ta vigueur (−8 PV max, une relique d\'élite)', eff: [['pvMax', -8], ['relique']] },
+      { txt: 'Se réchauffer (soigne 12 PV)', eff: [['pv', 12]] },
+      { txt: 'Passer son chemin', eff: [] }] },
+    { id: 'pacte', titre: 'Le pacte de cendre', actes: [2, 3], txt: 'Une silhouette sans visage tend un parchemin noirci. La signature se fait avec de la suie.', choix: [
+      { txt: 'Signer (une relique d\'élite, 2 Suies dans ton paquet)', eff: [['relique'], ['suies', 2]] },
+      { txt: 'Brûler le parchemin (+20 XP)', eff: [['xp', 20]] }] },
+    { id: 'mue', titre: 'La mue', cond: 'evolutif', txt: 'Ton familier tremble, sa peau craque. Il pourrait changer tout de suite, si tu lui donnes de quoi brûler.', choix: [
+      { txt: 'Le nourrir de braises (il évolue maintenant, 1 Suie dans ton paquet)', eff: [['evoFam'], ['suies', 1]] },
+      { txt: 'Le laisser grandir à son rythme (+15 XP)', eff: [['xp', 15]] }] },
+    { id: 'bibliotheque', titre: 'La bibliothèque noyée', txt: 'Des livres gonflés d\'eau flottent entre les rayonnages. Un seul reste sec, posé sur un pupitre.', choix: [
+      { txt: 'Lire le livre sec (une carte de ta classe au choix)', eff: [['carteClasse']] },
+      { txt: 'Arracher une page (transforme une carte de ton paquet)', eff: [['transforme']] }] },
+    { id: 'miroirs', titre: 'La galerie des miroirs', txt: 'Ton reflet bouge avec un temps de retard. Il te sourit, toi pas.', choix: [
+      { txt: 'Toucher le miroir (−7 PV, duplique une carte)', eff: [['pv', -7], ['duplique']] },
+      { txt: 'Le briser (−5 PV, +3 éclats)', eff: [['pv', -5], ['eclats', 3]] },
+      { txt: 'Détourner les yeux', eff: [] }] },
+    { id: 'banquet', titre: 'Le banquet des morts', actes: [2, 3], txt: 'Une table dressée pour douze. Les convives sont des squelettes, la viande est encore chaude.', choix: [
+      { txt: 'Manger (+8 PV max, 1 Suie dans ton paquet)', eff: [['pvMax', 8], ['suies', 1]] },
+      { txt: 'Boire seulement (soigne 15 PV)', eff: [['pv', 15]] }] },
+    { id: 'totem', titre: 'Le totem des tribus', txt: 'Cinq visages sculptés dans un même tronc. L\'un d\'eux ressemble à tes cartes.', choix: [
+      { txt: 'Bénir ta tribu principale (compte +2 pour ses liens)', eff: [['benir', 2]] },
+      { txt: 'Brûler le totem (+35 or)', eff: [['or', 35]] }] },
+    { id: 'forgeron', titre: 'Le forgeron muet', actes: [2, 3], txt: 'Il montre ton paquet du doigt, puis sa bourse vide.', choix: [
+      { txt: 'Payer 50 or (affûte 2 cartes au hasard)', cond: ['or', 50], eff: [['or', -50], ['affuteAlea'], ['affuteAlea']] },
+      { txt: 'Lui céder une carte (retire une carte, +25 or)', eff: [['or', 25], ['retire']] }] },
+    { id: 'roue', titre: 'La roue de fortune', txt: 'Une roue de chariot, peinte en rouge et noir, tourne toute seule.', choix: [
+      { txt: 'Miser 50 or (une chance sur deux de gagner 120)', cond: ['or', 50], eff: [['pariGros']] },
+      { txt: 'Miser ton sang (−6 PV : 2 chances sur 3 de gagner une carte rare)', eff: [['pariPV']] },
+      { txt: 'Ne pas toucher', eff: [] }] },
+    { id: 'pelerin', titre: 'Le pèlerin blessé', txt: 'Un homme adossé au mur, la jambe brûlée. Il serre une amulette contre lui.', choix: [
+      { txt: 'Le soigner avec tes forces (−10 PV, un talisman)', eff: [['pv', -10], ['talisman']] },
+      { txt: 'Lui laisser de l\'or (−20 or, +20 XP)', cond: ['or', 20], eff: [['or', -20], ['xp', 20]] },
+      { txt: 'Continuer', eff: [] }] },
+    { id: 'tombe', titre: 'La tombe ouverte', actes: [2, 3], txt: 'La dalle a été poussée de l\'intérieur. Au fond, des pièces brillent.', choix: [
+      { txt: 'Fouiller (+70 or, le prochain combat sera une élite)', eff: [['or', 70], ['elite']] },
+      { txt: 'Refermer la dalle (soigne 8 PV)', eff: [['pv', 8]] }] },
+    { id: 'fontaine', titre: 'La fontaine de cendre', txt: 'L\'eau est grise mais froide. Elle lave tout ce qu\'on y plonge.', choix: [
+      { txt: 'Se purifier (retire toutes tes Suies, soigne 5 PV)', eff: [['retireSuies'], ['pv', 5]] },
+      { txt: 'Remplir une fiole (+1 éclat)', eff: [['eclats', 1]] }] },
+    { id: 'ombres', titre: 'Le marchand d\'ombres', actes: [2, 3], txt: 'Il vend des objets qui n\'ont pas encore été perdus.', choix: [
+      { txt: 'Acheter une relique (110 or)', cond: ['or', 110], eff: [['or', -110], ['relique']] },
+      { txt: 'Vendre un souvenir (−6 PV max, +80 or)', eff: [['pvMax', -6], ['or', 80]] },
+      { txt: 'Partir', eff: [] }] },
+    { id: 'arene', titre: 'L\'arène des anciens', txt: 'Des gradins vides, une seule torche. Quelque chose attend le prochain défi.', choix: [
+      { txt: 'Lancer le défi (+25 XP, le prochain combat sera une élite)', eff: [['xp', 25], ['elite']] },
+      { txt: 'Regarder les fresques (+10 XP)', eff: [['xp', 10]] }] },
+    { id: 'oracle', titre: 'L\'oracle aveugle', actes: [1, 2], txt: 'Elle pose la main sur ton paquet et récite des noms de cartes que tu ne connais pas encore.', choix: [
+      { txt: 'Lui offrir 35 or (une carte rare au choix)', cond: ['or', 35], eff: [['or', -35], ['carteRare']] },
+      { txt: 'Écouter sa prophétie (−4 PV, +25 XP)', eff: [['pv', -4], ['xp', 25]] }] },
+    { id: 'enclume', titre: 'L\'enclume chantante', txt: 'Chaque coup de marteau y sonne une note différente. La dernière n\'est pas jolie.', choix: [
+      { txt: 'Forger (affûte une carte au choix, 1 Suie dans ton paquet)', eff: [['affute'], ['suies', 1]] },
+      { txt: 'Écouter (+1 éclat)', eff: [['eclats', 1]] }] },
+    { id: 'givreoeufs', titre: 'Les œufs de givre', actes: [1, 2], txt: 'Trois œufs translucides, tièdes malgré la glace qui les entoure. L\'un d\'eux bouge.', choix: [
+      { txt: 'Couver l\'œuf (un familier rejoint ton équipe)', eff: [['familier']] },
+      { txt: 'Les vendre au premier venu (+30 or)', eff: [['or', 30]] }] }
   ];
 
   const D = { TRIBUS, STATUTS, CLASSES, CARTES: C, TALISMANS, RELIQUES, FAMILIERS, RARETES, TAUX, ENNEMIS, PASSIFS, MONDES, ACTES, TALENTS, EVENEMENTS };

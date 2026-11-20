@@ -253,14 +253,37 @@ const Son = (() => {
       default: voix(d, 'triangle', 660, t, 0.05, 0.08, { r: 0.05 });
     }
   }
+  // V8 : montée de hauteur pour chaque carte enchaînée dans le même tour, impact proportionnel aux dégâts.
+  const journal = [];
+  const GAMME = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26, 28, 31];
+  function chaine(n, sorte) {
+    const k = Math.max(0, Math.min(GAMME.length - 1, (n || 1) - 1)), m = 67 + GAMME[k], f = hz(m);
+    journal.push({ sorte: 'chaine', n, hz: Math.round(f) }); if (journal.length > 50) journal.shift();
+    if (!ctx) return f;
+    const t = ctx.currentTime + 0.005, d = sfxBus;
+    voix(d, sorte === 'S' ? 'sine' : 'triangle', f, t, 0.09, 0.07 + Math.min(0.05, k * 0.006), { r: 0.12, rev: 0.45 });
+    voix(d, 'sine', f * 2, t + 0.03, 0.06, 0.03, { r: 0.1, rev: 0.6 });
+    return f;
+  }
+  function impact(n, letal) {
+    journal.push({ sorte: 'impact', n }); if (journal.length > 50) journal.shift();
+    if (!ctx) return;
+    const t = ctx.currentTime + 0.005, d = sfxBus, g = Math.min(1, 0.35 + (n || 0) / 25);
+    voix(d, 'sine', 120, t, 0.22, 0.5 * g, { glide: 38, r: 0.08 });
+    bruit(d, t, 0.18, 0.35 * g, { f: 1800, f2: 200, q: 0.8 });
+    if (letal) { voix(d, 'sawtooth', 220, t + 0.05, 0.3, 0.07, { glide: 55, cut: 1200, r: 0.1 }); timbale(d, t + 0.04, 49, 0.35); }
+  }
   function stinger(sorte) {
     if (!ctx) return;
     const t = ctx.currentTime + 0.02, d = sfxBus;
     if (themeBus) { const g = themeBus.gain; try { g.cancelScheduledValues(t); } catch (e) {} g.setTargetAtTime(0.25, t, 0.05); g.setTargetAtTime(1, t + 1.6, 0.4); }
+    journal.push({ sorte: 'stinger', nom: sorte }); if (journal.length > 50) journal.shift();
     if (sorte === 'victoire') { [[67, 0], [72, 0.12], [76, 0.24], [79, 0.36]].forEach(([m, dt]) => INSTR.cuivre(d, t + dt, m, 0.14, 0.2)); pad(d, t + 0.48, [72, 76, 79, 84], 1.3, 0.3, 2600); timbale(d, t + 0.48, 98, 0.5); }
     else if (sorte === 'defaite') { [[62, 0], [61, 0.45], [60, 0.9], [55, 1.35]].forEach(([m, dt]) => INSTR.cuivre(d, t + dt, m, 0.5, 0.14)); timbale(d, t + 1.35, 55, 0.5); }
     else if (sorte === 'relique') { [0, 4, 7, 11, 14, 19].forEach((s, i) => INSTR.cloche(d, t + i * 0.07, 72 + s, 0.4, 0.1)); bruit(d, t, 0.8, 0.05, { ft: 'highpass', f: 7000, rev: 0.5 }); }
     else if (sorte === 'familier') { [0, 5, 9, 12, 17].forEach((s, i) => INSTR.flute(d, t + i * 0.09, 72 + s, 0.14, 0.12)); }
+    else if (sorte === 'evolution') { [0, 4, 7, 12, 16, 19, 24].forEach((s, i) => INSTR.cloche(d, t + i * 0.08, 67 + s, 0.5, 0.1)); pad(d, t + 0.56, [67, 71, 74, 79], 1.6, 0.26, 3200); timbale(d, t + 0.56, 55, 0.45); bruit(d, t + 0.5, 1.2, 0.06, { ft: 'highpass', f: 6500, rev: 0.7 }); }
+    else if (sorte === 'boss') { [[43, 0], [46, 0.32], [42, 0.64]].forEach(([m, dt]) => INSTR.cuivre(d, t + dt, m, 0.5, 0.2)); timbale(d, t, 43, 0.6); timbale(d, t + 0.64, 38, 0.6); }
     else bip(sorte);
   }
 
@@ -281,5 +304,5 @@ const Son = (() => {
     return { crete, rms: Math.sqrt(som / g.length) };
   }
 
-  return { init: debloquer, debloquer, suspendu, etat, volumes, bip, musique, couper, bascule, stinger, rendreMorceau, estMuet: () => muet, themes: Object.keys(T) };
+  return { init: debloquer, debloquer, suspendu, etat, volumes, bip, chaine, impact, journal, musique, couper, bascule, stinger, rendreMorceau, estMuet: () => muet, themes: Object.keys(T) };
 })();
